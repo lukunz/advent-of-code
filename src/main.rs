@@ -6,6 +6,7 @@ fn main() {
     let file = File::open("input.txt").unwrap();
     let reader = BufReader::new(file);
 
+    let mut totals = Vec::new();
     let mut current_total = 0;
     let mut max_total = 0;
 
@@ -13,6 +14,7 @@ fn main() {
         let line = line.unwrap();
 
         if line.is_empty() {
+            totals.push(current_total);
             max_total = max(current_total, max_total);
             current_total = 0;
         } else {
@@ -21,7 +23,11 @@ fn main() {
         }
     }
 
+    totals.push(current_total);
     max_total = max(current_total, max_total);
+    totals.sort();
+    let top_three_total: u32 = totals.iter().rev().take(3).sum();
 
-    println!("{max_total}");
+    println!("Top Elf Total: {max_total}");
+    println!("Top Three Elf Total: {top_three_total}");
 }
