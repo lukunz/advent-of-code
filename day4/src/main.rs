@@ -39,7 +39,7 @@ fn check_overlap(group: &Group) -> bool {
 }
 
 fn main() {
-    let data = fs::read_to_string("input.txt").expect("Can't read input file");
+    let data = fs::read_to_string("day4/input.txt").expect("Can't read input file");
 
     let groups: Vec<Group> = data.lines()
         .filter_map(|line| parse_line(line))

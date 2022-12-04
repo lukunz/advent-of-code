@@ -48,7 +48,7 @@ fn part2(data: &String) {
 }
 
 fn main() {
-    let data = fs::read_to_string("input.txt").expect("Can't read input file");
+    let data = fs::read_to_string("day3/input.txt").expect("Can't read input file");
 
     part1(&data);
     part2(&data);
