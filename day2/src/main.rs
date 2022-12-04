@@ -44,7 +44,7 @@ fn points_for_move(player_move: Rps) -> u32 {
 }
 
 fn main() {
-    let file = File::open("input.txt").unwrap();
+    let file = File::open("day2/input.txt").unwrap();
     let reader = BufReader::new(file);
 
     let mut total = 0;

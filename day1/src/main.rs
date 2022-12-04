@@ -3,7 +3,7 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 
 fn main() {
-    let file = File::open("input.txt").unwrap();
+    let file = File::open("day1/input.txt").unwrap();
     let reader = BufReader::new(file);
 
     let mut totals = Vec::new();
