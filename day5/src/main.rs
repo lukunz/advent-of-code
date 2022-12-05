@@ -38,21 +38,16 @@ fn parse_actions(data: &str) -> Vec<Action> {
         .collect()
 }
 
-fn part_one(data: &str) -> String {
+fn parse_data(data: &str) -> (Vec<Vec<char>>, Vec<Action>) {
     let (header, actions) = data.split_once("\n\n").expect("Invalid data format");
 
-    let mut stacks = parse_header(header);
+    let stacks = parse_header(header);
     let actions = parse_actions(actions);
 
-    for action in actions {
-        for _ in 0..action.number_of_crates {
-            let crate_tag = stacks[action.source_stack]
-                .pop()
-                .expect("Can't take from empty stack");
-            stacks[action.target_stack].push(crate_tag);
-        }
-    }
+    (stacks, actions)
+}
 
+fn create_result(stacks: &Vec<Vec<char>>) -> String {
     let mut result = String::new();
 
     for stack in stacks {
@@ -65,12 +60,41 @@ fn part_one(data: &str) -> String {
     result
 }
 
+fn part_one(data: &str) -> String {
+    let (mut stacks, actions) = parse_data(data);
+
+    for action in actions {
+        for _ in 0..action.number_of_crates {
+            let crate_tag = stacks[action.source_stack]
+                .pop()
+                .expect("Can't take from empty stack");
+            stacks[action.target_stack].push(crate_tag);
+        }
+    }
+
+    create_result(&stacks)
+}
+
+fn part_two(data: &str) -> String {
+    let (mut stacks, actions) = parse_data(data);
+
+    for action in actions {
+        let split_off_index = stacks[action.source_stack].len() - action.number_of_crates;
+        let mut crate_tags = stacks[action.source_stack].split_off(split_off_index);
+        stacks[action.target_stack].append(&mut crate_tags);
+    }
+
+    create_result(&stacks)
+}
+
 fn main() {
     let data = fs::read_to_string("day5/input.txt").expect("Can't read input file");
 
     let result_part_one = part_one(&data);
+    let result_part_two = part_two(&data);
 
-    println!("{result_part_one}");
+    println!("Part one: {result_part_one}");
+    println!("Part two: {result_part_two}");
 }
 
 #[cfg(test)]
@@ -83,5 +107,29 @@ mod tests {
         let result = part_one(&data);
 
         assert_eq!(result, "CMZ");
+    }
+
+    #[test]
+    fn test_part_one_final() {
+        let data = fs::read_to_string("input.txt").expect("Can't read input file");
+        let result = part_one(&data);
+
+        assert_eq!(result, "SHQWSRBDL");
+    }
+
+    #[test]
+    fn test_part_two_small() {
+        let data = fs::read_to_string("input-small.txt").expect("Can't read input file");
+        let result = part_two(&data);
+
+        assert_eq!(result, "MCD");
+    }
+
+    #[test]
+    fn test_part_two_final() {
+        let data = fs::read_to_string("input.txt").expect("Can't read input file");
+        let result = part_two(&data);
+
+        assert_eq!(result, "CDTQZHBRS");
     }
 }
