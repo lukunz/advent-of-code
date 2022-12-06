@@ -5,7 +5,7 @@ fn find_start(data: &str, marker_size: usize) -> Option<usize> {
     let mut char_set = HashSet::with_capacity(marker_size);
 
     for index in marker_size..=data.len() {
-        let window = data.get(index - marker_size..index).expect("parse error");
+        let window = &data[index - marker_size..index];
 
         for c in window.chars() {
             char_set.insert(c);
