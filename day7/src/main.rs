@@ -129,14 +129,32 @@ fn size_of_small_directories(directory: &Directory, limit: usize) -> Result<usiz
     Ok(small_directories.iter().map(|(_, size)| size).sum())
 }
 
+fn find_smallest_directory_to_delete<'a>(
+    directory: &'a Directory<'a>,
+    target: usize,
+) -> Option<usize> {
+    let mut directories = Vec::new();
+    directory.find_small_directories(&mut directories, usize::MAX);
+
+    directories.sort_by(|(_, a), (_, b)| a.cmp(b));
+    let root = directories.pop().unwrap();
+
+    match directories.iter().find(|(_, size)| root.1 - size <= target) {
+        Some((_, size)) => Some(*size),
+        None => None,
+    }
+}
+
 fn main() {
     let data = fs::read_to_string("day7/input.txt").expect("Can't read input file");
     let statements = parse_input(&data).unwrap();
     let directory = create_filesystem(statements);
 
-    let result = size_of_small_directories(&directory, 100000).unwrap();
+    let result_part_one = size_of_small_directories(&directory, 100000).unwrap();
+    let result_part_two = find_smallest_directory_to_delete(&directory, 40000000).unwrap();
 
-    println!("Part one: {result}");
+    println!("Part one: {result_part_one}");
+    println!("Part two: {}", result_part_two);
 }
 
 #[cfg(test)]
@@ -176,5 +194,15 @@ mod tests {
         let result = size_of_small_directories(&directory, 100000);
 
         assert_eq!(Ok(95437), result);
+    }
+
+    #[test]
+    fn test_small_input2() {
+        let data = fs::read_to_string("input-small.txt").expect("Can't read input file");
+        let statements = parse_input(&data).unwrap();
+        let directory = create_filesystem(statements);
+        let result = find_smallest_directory_to_delete(&directory, 40000000).unwrap();
+
+        assert_eq!("d", result.name);
     }
 }
