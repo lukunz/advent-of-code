@@ -203,6 +203,6 @@ mod tests {
         let directory = create_filesystem(statements);
         let result = find_smallest_directory_to_delete(&directory, 40000000).unwrap();
 
-        assert_eq!("d", result.name);
+        assert_eq!(24933642, result);
     }
 }
