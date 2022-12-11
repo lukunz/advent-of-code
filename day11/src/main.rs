@@ -1,5 +1,4 @@
 use std::fs;
-use crate::Operation::Square;
 
 #[derive(Debug)]
 struct Monkey {
@@ -22,7 +21,7 @@ fn parse_monkey(input: &str) -> Monkey {
     let mut monkey = Monkey {
         items: Vec::new(),
         inspected_item_count: 0,
-        operation: Square,
+        operation: Operation::Square,
         test: 1,
         success_target: 0,
         fail_target: 0,
@@ -60,22 +59,33 @@ fn parse_operation(input: &[&str]) -> Operation {
     match input[0] {
         "+" =>  Operation::Add(input[1].parse().expect("Can't parse input")),
         "*" => match input[1] {
-            "old" => Square,
+            "old" => Operation::Square,
             number => Operation::Multiply(number.parse().expect("Can't parse input")),
         }
         _ => panic!("Can't parse input"),
     }
 }
 
-fn run_round(monkeys: &mut Vec<Monkey>) {
+fn run_round(monkeys: &mut Vec<Monkey>, calm_down: bool) {
+    let mut d = 1;
+    for monkey in monkeys.into_iter() {
+        d *= monkey.test;
+    }
+
     for i in 0..monkeys.len() {
         for item_i in 0..monkeys[i].items.len() {
             let worry_amount = monkeys[i].items[item_i];
-            let new_worry_amount = match monkeys[i].operation {
+            let mut new_worry_amount = match monkeys[i].operation {
                 Operation::Add(amount) => worry_amount + amount,
                 Operation::Multiply(factor) => worry_amount * factor,
-                Square => worry_amount * worry_amount,
-            } / 3;
+                Operation::Square => worry_amount * worry_amount,
+            };
+
+            if calm_down {
+                new_worry_amount /= 3;
+            }
+
+            new_worry_amount %= d;
 
             if new_worry_amount % monkeys[i].test == 0 {
                 let target_index = monkeys[i].success_target;
@@ -92,14 +102,16 @@ fn run_round(monkeys: &mut Vec<Monkey>) {
     }
 }
 
-fn main() {
-    let data = fs::read_to_string("day11/input.txt").expect("Can't read input file");
-
+fn part_one(data: &str) {
     let mut monkeys: Vec<Monkey> = data.split("\n\n").map(|input| parse_monkey(input)).collect();
 
     for _ in 0..20 {
-        run_round(&mut monkeys);
+        run_round(&mut monkeys, true);
     }
+
+    println!("Part one:");
+    println!("=========");
+    println!();
 
     for monkey in &monkeys {
         println!("{:?}", monkey);
@@ -110,4 +122,34 @@ fn main() {
     let monkey_business = item_counts.into_iter().rev().take(2).reduce(|a, b| a * b).unwrap();
 
     println!("{}", monkey_business);
+}
+
+fn part_two(data: &str) {
+    let mut monkeys: Vec<Monkey> = data.split("\n\n").map(|input| parse_monkey(input)).collect();
+
+    for _ in 0..10000 {
+        run_round(&mut monkeys, false);
+    }
+
+    println!("Part two:");
+    println!("=========");
+    println!();
+
+    for monkey in &monkeys {
+        println!("{:?}", monkey);
+    }
+
+    let mut item_counts: Vec<u64> = monkeys.iter().map(|monkey| monkey.inspected_item_count).collect();
+    item_counts.sort();
+    let monkey_business = item_counts.into_iter().rev().take(2).reduce(|a, b| a * b).unwrap();
+
+    println!("{}", monkey_business);
+}
+
+fn main() {
+    let data = fs::read_to_string("day11/input.txt").expect("Can't read input file");
+    part_one(&data);
+    println!();
+    println!();
+    part_two(&data);
 }
