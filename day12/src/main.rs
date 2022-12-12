@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Point {
     x: i64,
     y: i64,
@@ -107,7 +107,7 @@ impl Map {
             .collect()
     }
 
-    fn shortest_path(&self) -> i64 {
+    fn shortest_path(&self, start: &Point) -> i64 {
         let mut distances = BTreeMap::new();
         let mut queue = BTreeSet::new();
 
@@ -119,7 +119,7 @@ impl Map {
             }
         }
 
-        distances.insert(self.start.as_tuple(), 0);
+        distances.insert(start.as_tuple(), 0);
 
         while !queue.is_empty() {
             let (point, distance) = distances
@@ -134,6 +134,10 @@ impl Map {
                 })
                 .expect("not possible");
             queue.remove(point);
+
+            if point == &self.end.as_tuple() {
+                return *distance;
+            }
 
             if *distance == i64::MAX {
                 continue;
@@ -159,8 +163,28 @@ impl Map {
 
 fn main() {
     let map = Map::from_file("day12/input.txt");
-    let shortest_path_length = map.shortest_path();
-    println!("{}", shortest_path_length);
+    let shortest_path_length = map.shortest_path(&map.start);
+    println!("Part one: {}", shortest_path_length);
+
+    let mut points = Vec::new();
+    for x in 0..map.width {
+        for y in 0..map.height {
+            points.push(Point { x, y });
+        }
+    }
+
+    let mut a = 0;
+
+    let shortest = points
+        .iter()
+        .filter(|p| map.height(p) == 0)
+        .map(|p| {
+            a += 1;
+            map.shortest_path(p)
+        })
+        .min();
+
+    println!("Part two: {}", shortest.unwrap());
 }
 
 #[cfg(test)]
