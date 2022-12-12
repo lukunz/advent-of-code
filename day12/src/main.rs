@@ -1,10 +1,15 @@
-use std::collections::{BTreeMap, VecDeque};
+use std::collections::VecDeque;
 use std::fs;
 
 type Point = (i64, i64);
 
+struct MapSquare {
+    height: i64,
+    distance: i64,
+}
+
 struct Map {
-    points: Vec<Vec<i64>>,
+    grid: Vec<Vec<MapSquare>>,
     start: Point,
     end: Point,
     width: i64,
@@ -15,7 +20,7 @@ impl Map {
     fn from_file(file: &str) -> Self {
         let data = fs::read_to_string(file).expect("Can't read input file");
 
-        let mut points = Vec::new();
+        let mut grid = Vec::new();
         let mut start: Option<Point> = None;
         let mut end: Option<Point> = None;
         let mut x: i64 = 0;
@@ -28,23 +33,32 @@ impl Map {
                 match height_char {
                     'E' => {
                         end = Some((x, y));
-                        row.push(25);
+                        row.push(MapSquare {
+                            height: 25,
+                            distance: i64::MAX,
+                        });
                     }
                     'S' => {
                         start = Some((x, y));
-                        row.push(0);
+                        row.push(MapSquare {
+                            height: 0,
+                            distance: i64::MAX,
+                        });
                     }
-                    'a'..='z' => row.push(height_char.to_digit(36).unwrap() as i64 - 10),
+                    'a'..='z' => row.push(MapSquare {
+                        height: height_char as i64 - 97,
+                        distance: i64::MAX,
+                    }),
                     _ => panic!("Invalid map format"),
                 }
                 x += 1;
             }
-            points.push(row);
+            grid.push(row);
             y += 1;
         }
 
         Map {
-            points,
+            grid,
             start: start.expect("Invalid map format"),
             end: end.expect("Invalid map format"),
             width: x,
@@ -61,7 +75,15 @@ impl Map {
     }
 
     fn height(&self, point: &Point) -> i64 {
-        self.points[point.1 as usize][point.0 as usize]
+        self.grid[point.1 as usize][point.0 as usize].height
+    }
+
+    fn distance(&self, point: &Point) -> i64 {
+        self.grid[point.1 as usize][point.0 as usize].distance
+    }
+
+    fn set_distance(&mut self, point: &Point, distance: i64) {
+        self.grid[point.1 as usize][point.0 as usize].distance = distance;
     }
 
     fn neighbours(&self, point: &Point) -> Vec<Point> {
@@ -74,63 +96,46 @@ impl Map {
 
         edges
             .into_iter()
-            .filter(|p| self.contains(p) && self.height(&point) + 1 >= self.height(p))
+            .filter(|p| self.contains(p) && self.height(&point) - 1 <= self.height(p))
             .collect()
     }
 
-    fn shortest_path(&self, start: &Point) -> i64 {
-        let mut distances = BTreeMap::new();
+    fn calculate_distances(&mut self) {
         let mut queue = VecDeque::new();
 
-        for x in 0..self.width {
-            for y in 0..self.height {
-                distances.insert((x, y), i64::MAX);
-            }
-        }
-
-        distances.insert(*start, 0);
-        queue.push_back(*start);
+        self.set_distance(&self.end.clone(), 0);
+        queue.push_back(self.end);
 
         while !queue.is_empty() {
             let point = queue.pop_front().unwrap();
-            let distance = distances.get(&point).unwrap().clone();
+            let distance = self.distance(&point);
 
             for neighbour in self.neighbours(&point) {
-                if distances.get(&neighbour).unwrap() > &(distance + 1) {
-                    distances.insert(neighbour, distance + 1);
+                if self.distance(&neighbour) > distance + 1 {
+                    self.set_distance(&neighbour, distance + 1);
                     queue.push_back(neighbour);
                 }
             }
         }
-
-        *distances.get(&self.end).unwrap()
     }
 }
 
 fn main() {
-    let map = Map::from_file("day12/input.txt");
-    let shortest_path_length = map.shortest_path(&map.start);
-    println!("Part one: {}", shortest_path_length);
+    let mut map = Map::from_file("day12/input.txt");
+    map.calculate_distances();
+    println!("Part one: {}", map.distance(&map.start));
 
-    let mut points = Vec::new();
+    let mut shortest = i64::MAX;
     for x in 0..map.width {
         for y in 0..map.height {
-            points.push((x, y));
+            let point = &(x, y);
+            if map.height(point) == 0 {
+                shortest = i64::min(shortest, map.distance(point));
+            }
         }
     }
 
-    let mut a = 0;
-
-    let shortest = points
-        .iter()
-        .filter(|p| map.height(p) == 0)
-        .map(|p| {
-            a += 1;
-            map.shortest_path(p)
-        })
-        .min();
-
-    println!("Part two: {}", shortest.unwrap());
+    println!("Part two: {}", shortest);
 }
 
 #[cfg(test)]
