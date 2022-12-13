@@ -135,11 +135,38 @@ fn part_one(file: &str) -> usize {
         .sum()
 }
 
+fn part_two(file: &str) -> usize {
+    let mut lines: Vec<Item> = file
+        .lines()
+        .filter(|line| !line.is_empty())
+        .map(|line| parse_line(line))
+        .collect();
+
+    lines.push(Item::List(vec![Item::List(vec![Item::Value(2)])]));
+    lines.push(Item::List(vec![Item::List(vec![Item::Value(6)])]));
+
+    lines.sort();
+
+    let divider = vec![
+        Item::List(vec![Item::List(vec![Item::Value(2)])]),
+        Item::List(vec![Item::List(vec![Item::Value(6)])]),
+    ];
+
+    lines
+        .iter()
+        .enumerate()
+        .map(|(index, line)| if divider.contains(line) { index + 1 } else { 1 })
+        .reduce(|a, b| a * b)
+        .expect("error")
+}
+
 fn main() {
     let data = fs::read_to_string("day13/input.txt").expect("Can't read input file");
     let sorted_count = part_one(&data);
+    let key = part_two(&data);
 
     println!("Part one: {}", sorted_count);
+    println!("Part two: {}", key);
 }
 #[cfg(test)]
 mod tests {
