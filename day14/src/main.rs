@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use std::fs;
 use std::ops::RangeInclusive;
 
@@ -24,13 +25,20 @@ enum Tile {
 struct Map {
     offset_x: u64,
     offset_y: u64,
-    tiles: Vec<Vec<Tile>>,
+    tiles: VecDeque<Vec<Tile>>,
 }
 
 enum TikResult {
     Falling(Point),
     Settled,
     Finished,
+}
+
+#[derive(PartialEq)]
+enum ContainResult {
+    Contains,
+    LeavesX,
+    LeavesY,
 }
 
 impl Point {
@@ -73,24 +81,34 @@ impl Point {
 }
 
 impl Map {
-    fn from_file(file: &str) -> Self {
+    fn from_file(file: &str, with_bottom: bool) -> Self {
         let data = fs::read_to_string(file).expect("Can't read input file");
 
         let paths: Vec<Vec<Point>> = data.lines().map(|line| parse_line(line)).collect();
         let limits = find_limits(&paths);
 
-        Self::build(&limits, &paths)
+        Self::build(&limits, &paths, with_bottom)
     }
 
-    fn build(limits: &Limits, paths: &Vec<Vec<Point>>) -> Self {
+    fn build(limits: &Limits, paths: &Vec<Vec<Point>>, with_bottom: bool) -> Self {
         let mut map = Map {
             offset_x: limits.min_x - 1,
             offset_y: 0,
-            tiles: Vec::new(),
+            tiles: VecDeque::new(),
         };
 
+        let height = if with_bottom {
+            limits.max_y + 3
+        } else {
+            limits.max_y + 1
+        } as usize;
+
         for x in map.offset_x..limits.max_x + 2 {
-            map.tiles.push(vec![Tile::Air; 1 + limits.max_y as usize])
+            map.tiles.push_back(vec![Tile::Air; height]);
+
+            if with_bottom {
+                map.tiles[x as usize - map.offset_x as usize][height - 1] = Tile::Rock
+            }
         }
 
         for path in paths {
@@ -136,29 +154,59 @@ impl Map {
         self.get_tile(point) != &Tile::Air
     }
 
-    fn contains(&self, point: &Point) -> bool {
-        (0..self.tiles.len()).contains(&((point.x - self.offset_x) as usize))
-            && (0..self.tiles[0].len()).contains(&(point.y as usize))
+    fn contains(&self, point: &Point) -> ContainResult {
+        if point.x < self.offset_x || point.x as usize >= self.tiles.len() + self.offset_x as usize
+        {
+            ContainResult::LeavesX
+        } else if !(0..self.tiles[0].len()).contains(&(point.y as usize)) {
+            ContainResult::LeavesY
+        } else {
+            ContainResult::Contains
+        }
+    }
+
+    fn grow_x(&mut self, x: u64) {
+        let height = self.tiles[0].len();
+        let mut new_row = vec![Tile::Air; height];
+        new_row[height - 1] = Tile::Rock;
+
+        if x < self.offset_x {
+            self.tiles.push_front(new_row);
+            self.offset_x -= 1;
+        } else {
+            self.tiles.push_back(new_row);
+        }
     }
 
     fn tik(&mut self, point: &Point) -> TikResult {
-        let down_point = point.down();
-
-        if !self.contains(&down_point) {
+        if self.is_blocked(point) {
             return TikResult::Finished;
         }
 
+        let down_point = point.down();
+
+        if self.contains(&down_point) != ContainResult::Contains {
+            return TikResult::Finished;
+        }
         if !self.is_blocked(&down_point) {
             return TikResult::Falling(down_point);
         }
 
         let down_point = point.down_left();
 
+        if self.contains(&down_point) == ContainResult::LeavesX {
+            self.grow_x(down_point.x);
+        }
+
         if !self.is_blocked(&down_point) {
             return TikResult::Falling(down_point);
         }
 
         let down_point = point.down_right();
+
+        if self.contains(&down_point) == ContainResult::LeavesX {
+            self.grow_x(down_point.x);
+        }
 
         if !self.is_blocked(&down_point) {
             return TikResult::Falling(down_point);
@@ -203,7 +251,7 @@ fn find_limits(paths: &Vec<Vec<Point>>) -> Limits {
     limits
 }
 
-fn part_one(map: &mut Map) -> u64 {
+fn run(map: &mut Map) -> u64 {
     let start_point = Point { x: 500, y: 0 };
     let mut point = start_point.clone();
     let mut sand_counter = 0;
@@ -223,9 +271,10 @@ fn part_one(map: &mut Map) -> u64 {
 }
 
 fn main() {
-    let mut map = Map::from_file("day14/input.txt");
+    let file = "day14/input.txt";
+    let mut map = Map::from_file(file, false);
+    println!("Part one: {}", run(&mut map));
 
-    println!("Part one: {}", part_one(&mut map));
-
-    map.print();
+    let mut map = Map::from_file(file, true);
+    println!("Part two: {}", run(&mut map));
 }
