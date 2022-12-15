@@ -1,6 +1,7 @@
+use std::collections::HashSet;
 use std::fs;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Hash, Eq)]
 struct Point {
     x: i64,
     y: i64,
@@ -64,32 +65,7 @@ fn parse_file(file: &str) -> Vec<Sensor> {
     data.lines().map(|line| parse_line(line)).collect()
 }
 
-fn print(sensors: &Vec<Sensor>) {
-    let (min_x, max_x, min_y, max_y) = sensors
-        .iter()
-        .fold((i64::MAX, i64::MIN, i64::MAX, i64::MIN), |(min_x, max_x, min_y, max_y), sensor| {
-            (
-                min_x.min(sensor.location.x - sensor.distance),
-                max_x.max(sensor.location.x + sensor.distance),
-                min_y.min(sensor.location.y - sensor.distance),
-                max_y.max(sensor.location.y + sensor.distance),
-            )
-        });
-
-    for y in min_y..=max_y {
-        for x in min_x..=max_x {
-            let p = Point { x, y };
-            if sensors.iter().any(|sensor| sensor.covers(&p)) {
-                print!("#");
-            } else {
-                print!(".");
-            }
-        }
-        println!();
-    }
-}
-
-fn part_one(sensors: &Vec<Sensor>, y: i64) -> u64 {
+fn part_one(sensors: &Vec<Sensor>, y: i64) -> i64 {
     let (min_x, max_x) = sensors
         .iter()
         .fold((i64::MAX, i64::MIN), |(min_x, max_x), sensor| {
@@ -99,27 +75,76 @@ fn part_one(sensors: &Vec<Sensor>, y: i64) -> u64 {
             )
         });
 
-    (min_x..=max_x)
-        .map(|x| {
+    let mut beacons = HashSet::new();
+
+    for sensor in sensors {
+        if sensor.closest_beacon.y == y {
+            beacons.insert(&sensor.closest_beacon);
+        }
+    }
+
+    let beacon_count = beacons.len() as i64;
+
+    let mut x = min_x;
+    let mut tile_count = 0;
+
+    while x <= max_x {
+        let p = Point { x, y };
+        let mut new_x = None;
+
+        for sensor in sensors {
+            if sensor.covers(&p) {
+                new_x = Some(
+                    sensor.location.x + 1 + (sensor.distance - (sensor.location.y - p.y).abs()),
+                );
+                break;
+            }
+        }
+
+        if let Some(new_x) = new_x {
+            x = new_x.min(max_x);
+            tile_count += x - p.x;
+        } else {
+            x += 1;
+        }
+    }
+
+    tile_count - beacon_count
+}
+
+fn part_two(sensors: &Vec<Sensor>, limit: i64) -> i64 {
+    for y in 0..=limit {
+        let mut x = 0;
+
+        while x <= limit {
             let p = Point { x, y };
-            if sensors.iter().any(|sensor| sensor.closest_beacon == p) {
-                return 0
+            let mut new_x = None;
+
+            for sensor in sensors {
+                if sensor.covers(&p) {
+                    new_x = Some(
+                        sensor.location.x + 1 + (sensor.distance - (sensor.location.y - p.y).abs()),
+                    );
+                    break;
+                }
             }
 
-            if sensors.iter().any(|sensor| sensor.covers(&p)) {
-                1
+            if let Some(new_x) = new_x {
+                x = new_x.min(limit + 1);
             } else {
-                0
+                return p.x * 4000000 + p.y;
             }
-        })
-        .sum()
+        }
+    }
+
+    0
 }
 
 fn main() {
     let sensors = parse_file("day15/input.txt");
-    // print(&sensors);
 
     println!("Part one: {}", part_one(&sensors, 2000000));
+    println!("Part two: {}", part_two(&sensors, 4000000));
 }
 
 #[cfg(test)]
@@ -133,5 +158,26 @@ mod test {
 
         assert_eq!(Point { x: 2, y: 18 }, point1);
         assert_eq!(Point { x: -2, y: 15 }, point2);
+    }
+
+    #[test]
+    fn test_part_one_small() {
+        let sensors = parse_file("input-small.txt");
+
+        assert_eq!(26, part_one(&sensors, 10));
+    }
+
+    #[test]
+    fn test_part_one() {
+        let sensors = parse_file("input.txt");
+
+        assert_eq!(4582667, part_one(&sensors, 2_000_000));
+    }
+
+    #[test]
+    fn test_part_two_small() {
+        let sensors = parse_file("input-small.txt");
+
+        assert_eq!(56000011, part_two(&sensors, 20));
     }
 }
