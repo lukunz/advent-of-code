@@ -319,40 +319,19 @@ fn walk<'a>(
     }
     right_game_state.visited_nodes.insert(node_id, true);
 
-    let best_game_state = walk_neighbours(
-        node_id,
-        distances,
-        best_game_state,
-        &neighbour_ids,
-        right_game_state,
-        &mut path,
-    );
-
-    // println!("{} graph done {} - {} - {}", path.join(" -> "), best_game_state.score(), best_game_state.current_flow_rate(), best_game_state.rounds_left);
-    best_game_state
-}
-
-fn walk_neighbours<'a, 'b>(
-    node_id: u32,
-    distances: &'a BTreeMap<(u32, u32), u32>,
-    best_game_state: GameState<'a>,
-    neighbour_ids: &'b Vec<u32>,
-    game_state: GameState<'a>,
-    path: &mut Vec<String>,
-) -> GameState<'a> {
-    let mut new_best_game_state = if game_state.score() >= best_game_state.score() {
-        game_state.clone()
+    let mut new_best_game_state = if right_game_state.score() >= best_game_state.score() {
+        right_game_state.clone()
     } else {
         best_game_state.clone()
     };
 
     for neighbour_id in neighbour_ids {
-        let distance = distances[&Graph::edge_id(node_id, *neighbour_id)];
-        if distance <= game_state.rounds_left {
-            let mut new_game_state = game_state.clone();
+        let distance = distances[&Graph::edge_id(node_id, neighbour_id)];
+        if distance <= right_game_state.rounds_left {
+            let mut new_game_state = right_game_state.clone();
             new_game_state.tick(distance);
 
-            let new_game_state = walk(*neighbour_id, distances, new_game_state, path.clone());
+            let new_game_state = walk(neighbour_id, distances, new_game_state, path.clone());
 
             if new_game_state.score() > new_best_game_state.score() {
                 new_best_game_state = new_game_state;
@@ -360,20 +339,19 @@ fn walk_neighbours<'a, 'b>(
         }
     }
 
+    // println!("{} graph done {} - {} - {}", path.join(" -> "), best_game_state.score(), best_game_state.current_flow_rate(), best_game_state.rounds_left);
     new_best_game_state
 }
 
-fn part_one() {
-    let mut graph = Graph::from_file("day16/input.txt");
+fn part_one(file: &str) -> u32 {
+    let mut graph = Graph::from_file(file);
     graph.simplify();
 
     let distances = calculate_distances(&mut graph);
 
     let game_state = walk(parse_node_id("AA"), &distances, GameState::from(&graph), Vec::new());
 
-    println!("{:?}", game_state.score());
-
-    // println!("{}", graph.to_dot());
+    game_state.score()
 }
 
 fn calculate_distances(mut graph: &mut Graph) -> BTreeMap<(u32, u32), u32> {
@@ -392,7 +370,7 @@ fn calculate_distances(mut graph: &mut Graph) -> BTreeMap<(u32, u32), u32> {
 }
 
 fn main() {
-    part_one();
+    println!("Part one: {}", part_one("day16/input.txt"));
 }
 
 #[cfg(test)]
@@ -467,5 +445,15 @@ mod test {
         let game_state = walk(parse_node_id("AA"), &distances, GameState::from(&graph), Vec::new());
 
         assert_eq!(28 * 13 + 26 * 2, game_state.score());
+    }
+
+    #[test]
+    fn test_part_one_small() {
+        assert_eq!(1651, part_one("input-small.txt"));
+    }
+
+    #[test]
+    fn test_part_one() {
+        assert_eq!(2183, part_one("input.txt"));
     }
 }
