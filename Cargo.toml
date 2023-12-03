@@ -1,3 +1,3 @@
 [workspace]
-members = [ "2022/day*", "2023" ]
+members = [ "2022/day*", "2023/day*" ]
 resolver = "2"
