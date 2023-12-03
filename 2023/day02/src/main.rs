@@ -55,7 +55,7 @@ fn check_game(game: &Game, max_round: &Round) -> bool {
     true
 }
 
-fn part1(games: &Vec<Game>) {
+fn part1(games: &[Game]) {
     let max_round = Round {
         red: 12,
         green: 13,
@@ -63,7 +63,7 @@ fn part1(games: &Vec<Game>) {
     };
 
     let sum: u32 = games
-        .into_iter()
+        .iter()
         .filter(|game| check_game(game, &max_round))
         .map(|game| game.id)
         .sum();
@@ -87,10 +87,10 @@ fn find_max_round(game: &Game) -> Round {
     max_round
 }
 
-fn part2(games: &Vec<Game>) {
+fn part2(games: &[Game]) {
     let sum: u32 = games
-        .into_iter()
-        .map(|game| find_max_round(game))
+        .iter()
+        .map(find_max_round)
         .map(|round| round.red * round.green * round.blue)
         .sum();
 
@@ -99,7 +99,7 @@ fn part2(games: &Vec<Game>) {
 
 fn main() {
     let data = fs::read_to_string("day2.txt").expect("Can't read input file");
-    let games = data.lines().map(|line| parse_game(line)).collect();
+    let games: Vec<Game> = data.lines().map(parse_game).collect();
 
     part1(&games);
     part2(&games);
