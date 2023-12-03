@@ -1,3 +1,4 @@
+use std::cmp::max;
 use std::fs;
 
 struct Round {
@@ -54,19 +55,52 @@ fn check_game(game: &Game, max_round: &Round) -> bool {
     true
 }
 
-fn main() {
-    let data = fs::read_to_string("day2.txt").expect("Can't read input file");
+fn part1(games: &Vec<Game>) {
     let max_round = Round {
         red: 12,
         green: 13,
         blue: 14,
     };
-    let sum: u32 = data
-        .lines()
-        .map(|line| parse_game(line))
+
+    let sum: u32 = games
+        .into_iter()
         .filter(|game| check_game(game, &max_round))
         .map(|game| game.id)
         .sum();
 
     println!("Day 2 Part 1: {}", sum);
+}
+
+fn find_max_round(game: &Game) -> Round {
+    let mut max_round = Round {
+        red: 0,
+        green: 0,
+        blue: 0,
+    };
+
+    for round in &game.rounds {
+        max_round.red = max(max_round.red, round.red);
+        max_round.green = max(max_round.green, round.green);
+        max_round.blue = max(max_round.blue, round.blue);
+    }
+
+    max_round
+}
+
+fn part2(games: &Vec<Game>) {
+    let sum: u32 = games
+        .into_iter()
+        .map(|game| find_max_round(game))
+        .map(|round| round.red * round.green * round.blue)
+        .sum();
+
+    println!("Day 2 Part 2: {}", sum);
+}
+
+fn main() {
+    let data = fs::read_to_string("day2.txt").expect("Can't read input file");
+    let games = data.lines().map(|line| parse_game(line)).collect();
+
+    part1(&games);
+    part2(&games);
 }
