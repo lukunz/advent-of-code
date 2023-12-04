@@ -2,7 +2,6 @@ use std::collections::HashSet;
 use std::fs;
 
 struct Card {
-    id: usize,
     winning_numbers: HashSet<usize>,
     numbers: HashSet<usize>,
     copies: usize,
@@ -16,12 +15,10 @@ fn parse_number_list(number_str: &str) -> HashSet<usize> {
 }
 
 fn parse_card(line: &str) -> Card {
-    let (card_str, all_numbers_str) = line.split_once(": ").unwrap();
-    let (_, card_id_str) = card_str.split_once(' ').unwrap();
+    let (_, all_numbers_str) = line.split_once(": ").unwrap();
     let (winning_numbers_str, numbers_str) = all_numbers_str.split_once(" | ").unwrap();
 
     Card {
-        id: card_id_str.trim().parse::<usize>().unwrap(),
         winning_numbers: parse_number_list(winning_numbers_str),
         numbers: parse_number_list(numbers_str),
         copies: 1,
@@ -52,10 +49,9 @@ fn main() {
     println!("Day 4 Part 1: {}", part1_result);
 
     for index in 0..cards.len() {
-        let card = &cards[index];
-        let matching_numbers_count = count_matching_numbers(card);
+        let matching_numbers_count = count_matching_numbers(&cards[index]);
 
-        for index2 in card.id..cards.len().min(card.id + matching_numbers_count as usize) {
+        for index2 in index + 1..cards.len().min(index + 1 + matching_numbers_count as usize) {
             cards[index2].copies += cards[index].copies;
         }
     }
