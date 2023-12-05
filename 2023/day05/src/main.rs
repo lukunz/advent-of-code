@@ -1,3 +1,4 @@
+use rayon::prelude::*;
 use std::fs;
 use std::str::{FromStr, Lines};
 
@@ -119,5 +120,18 @@ fn main() {
         .min()
         .unwrap();
 
+    let part2_result = seeds
+        .chunks(2)
+        .map(|range| {
+            (range[0]..range[0] + range[1])
+                .into_par_iter()
+                .map(|seed| get_location(seed, &almanac))
+                .min()
+                .unwrap()
+        })
+        .min()
+        .unwrap();
+
     println!("Day 5 Part 1: {}", part1_result);
+    println!("Day 5 Part 2: {}", part2_result);
 }
