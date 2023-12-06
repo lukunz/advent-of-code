@@ -1,41 +1,11 @@
 use rayon::prelude::*;
 use std::fs;
-use std::str::{FromStr, Lines};
+use std::str::Lines;
 
 struct Mapping {
     src: usize,
     dest: usize,
     len: usize,
-}
-
-#[derive(PartialEq, Eq, Hash)]
-enum Resource {
-    Seed,
-    Soil,
-    Fertilizer,
-    Water,
-    Light,
-    Temperature,
-    Humidity,
-    Location,
-}
-
-impl FromStr for Resource {
-    type Err = String;
-
-    fn from_str<'a>(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "seed" => Ok(Self::Seed),
-            "soil" => Ok(Self::Soil),
-            "fertilizer" => Ok(Self::Fertilizer),
-            "water" => Ok(Self::Water),
-            "light" => Ok(Self::Light),
-            "temperature" => Ok(Self::Temperature),
-            "humidity" => Ok(Self::Humidity),
-            "location" => Ok(Self::Location),
-            _ => Err(format!("Unknown resource '{}'", s)),
-        }
-    }
 }
 
 fn parse_number_list(number_str: &str) -> Vec<usize> {
@@ -54,15 +24,15 @@ fn parse_seeds(seed_str: &str) -> Vec<usize> {
 type Almanac = Vec<Vec<Mapping>>;
 
 fn parse_almanac(lines: &mut Lines) -> Almanac {
-    let mut to: Option<Resource> = None;
+    let mut inside_mapping = false;
     let mut mappings: Vec<Mapping> = Vec::new();
     let mut almanac: Almanac = Vec::new();
 
     for line in lines {
         if line.is_empty() {
-            if to.is_some() && !mappings.is_empty() {
+            if inside_mapping && !mappings.is_empty() {
                 almanac.push(mappings);
-                to = None;
+                inside_mapping = false;
                 mappings = Vec::new();
             }
 
@@ -70,10 +40,7 @@ fn parse_almanac(lines: &mut Lines) -> Almanac {
         }
 
         if line.ends_with(':') {
-            let (mapping_str, _) = line.split_once(' ').unwrap();
-            let (_, to_str) = mapping_str.split_once("-to-").unwrap();
-
-            to = Resource::from_str(to_str).ok();
+            inside_mapping = true;
 
             continue;
         }
@@ -86,7 +53,7 @@ fn parse_almanac(lines: &mut Lines) -> Almanac {
         });
     }
 
-    if to.is_some() && !mappings.is_empty() {
+    if inside_mapping && !mappings.is_empty() {
         almanac.push(mappings);
     }
 
