@@ -19,7 +19,6 @@ enum Card {
     A,
     K,
     Q,
-    J,
     T,
     C9,
     C8,
@@ -29,6 +28,7 @@ enum Card {
     C4,
     C3,
     C2,
+    J,
 }
 
 impl Card {
@@ -67,8 +67,8 @@ impl FromStr for Hand {
         let cards: Vec<Card> = cards.chars().map(Card::from_char).collect();
         let bid = bid.parse::<usize>().unwrap();
 
-        let card_counts = count_cards(&cards);
-        let strength = calculate_strength(&card_counts);
+        let (card_counts, joker_count) = count_cards(&cards);
+        let strength = calculate_strength(&card_counts, joker_count);
 
         Ok(Hand {
             cards,
@@ -110,7 +110,7 @@ impl Ord for Hand {
     }
 }
 
-fn count_cards(cards: &[Card]) -> Vec<usize> {
+fn count_cards(cards: &[Card]) -> (Vec<usize>, usize) {
     let mut card_counts: HashMap<Card, usize> = HashMap::new();
 
     for card in cards {
@@ -121,49 +121,81 @@ fn count_cards(cards: &[Card]) -> Vec<usize> {
         }
     }
 
-    card_counts.into_values().collect()
+    let joker_count = card_counts.remove(&Card::J).unwrap_or(0);
+
+    (card_counts.into_values().collect(), joker_count)
 }
 
-fn calculate_strength(card_counts: &[usize]) -> Strength {
-    if is_five_of_a_kind(card_counts) {
+fn calculate_strength(card_counts: &[usize], joker_count: usize) -> Strength {
+    if is_five_of_a_kind(card_counts, joker_count) {
         Strength::FiveOfAKind
-    } else if is_four_of_a_kind(card_counts) {
+    } else if is_four_of_a_kind(card_counts, joker_count) {
         Strength::FourOfAKind
-    } else if is_full_house(card_counts) {
+    } else if is_full_house(card_counts, joker_count) {
         Strength::FullHouse
-    } else if is_three_of_a_kind(card_counts) {
+    } else if is_three_of_a_kind(card_counts, joker_count) {
         Strength::ThreeOfAKind
-    } else if is_two_pair(card_counts) {
+    } else if is_two_pair(card_counts, joker_count) {
         Strength::TwoPair
-    } else if is_one_pair(card_counts) {
+    } else if is_one_pair(card_counts, joker_count) {
         Strength::OnePair
     } else {
         Strength::HighCard
     }
 }
 
-fn is_five_of_a_kind(card_counts: &[usize]) -> bool {
-    card_counts.contains(&5)
+fn is_five_of_a_kind(card_counts: &[usize], joker_count: usize) -> bool {
+    if card_counts.is_empty() {
+        true
+    } else {
+        card_counts.iter().max().unwrap() + joker_count == 5
+    }
 }
 
-fn is_four_of_a_kind(card_counts: &[usize]) -> bool {
-    card_counts.contains(&4)
+fn is_four_of_a_kind(card_counts: &[usize], joker_count: usize) -> bool {
+    if card_counts.is_empty() {
+        false
+    } else {
+        card_counts.iter().max().unwrap() + joker_count == 4
+    }
 }
 
-fn is_full_house(card_counts: &[usize]) -> bool {
-    card_counts.contains(&3) && card_counts.contains(&2)
+fn is_full_house(card_counts: &[usize], joker_count: usize) -> bool {
+    if joker_count > 3 {
+        false
+    } else if joker_count == 3 {
+        true
+    } else {
+        card_counts.contains(&3) && card_counts.contains(&2)
+            || joker_count == 1 && card_counts.iter().filter(|c| **c == 2).count() == 2
+            || joker_count == 1 && card_counts.contains(&3)
+            || joker_count == 2 && card_counts.contains(&3)
+            || joker_count == 2 && card_counts.contains(&2)
+    }
 }
 
-fn is_three_of_a_kind(card_counts: &[usize]) -> bool {
-    card_counts.contains(&3) && !card_counts.contains(&2)
+fn is_three_of_a_kind(card_counts: &[usize], joker_count: usize) -> bool {
+    if joker_count > 2 {
+        false
+    } else if joker_count == 2 {
+        true
+    } else {
+        card_counts.contains(&3) && !card_counts.contains(&2)
+            || joker_count == 1 && card_counts.contains(&2)
+    }
 }
 
-fn is_two_pair(card_counts: &[usize]) -> bool {
-    card_counts.iter().filter(|c| **c == 2).count() == 2
+fn is_two_pair(card_counts: &[usize], joker_count: usize) -> bool {
+    if joker_count > 1 {
+        false
+    } else {
+        card_counts.iter().filter(|c| **c == 2).count() == 2
+            || joker_count == 1 && card_counts.contains(&2)
+    }
 }
 
-fn is_one_pair(card_counts: &[usize]) -> bool {
-    card_counts.iter().filter(|c| **c == 2).count() == 1
+fn is_one_pair(card_counts: &[usize], joker_count: usize) -> bool {
+    joker_count == 1 || card_counts.iter().filter(|c| **c == 2).count() == 1
 }
 
 fn main() {
@@ -180,5 +212,5 @@ fn main() {
         .map(|(rank, hand)| (rank + 1) * hand.bid)
         .sum();
 
-    println!("Day 7 Part 1: {}", part1_result);
+    println!("Day 7 Part 2: {}", part1_result);
 }
