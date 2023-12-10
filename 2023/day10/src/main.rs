@@ -1,5 +1,6 @@
 use std::cmp::min;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use std::fmt::{Display, Formatter};
 use std::fs;
 
 #[derive(PartialEq, Clone, Copy, Debug)]
@@ -34,6 +35,19 @@ impl Tile {
             '.' => Ok(Self::Ground),
             'S' => Ok(Self::Start),
             _ => Err(String::from("Unknown tile")),
+        }
+    }
+
+    fn to_char(self) -> char {
+        match self {
+            Tile::NToS => '|',
+            Tile::EToW => '-',
+            Tile::NToE => 'L',
+            Tile::NToW => 'J',
+            Tile::SToW => '7',
+            Tile::SToE => 'F',
+            Tile::Ground => '.',
+            Tile::Start => 'S',
         }
     }
 
@@ -137,6 +151,155 @@ impl Map {
             }
         }
     }
+
+    fn sweep(&mut self, keep: &HashSet<Point>) {
+        for y in 0..self.height {
+            for x in 0..self.width {
+                if !keep.contains(&(x, y)) {
+                    self.map[y][x] = Tile::Ground;
+                }
+            }
+        }
+    }
+
+    fn expand(&self) -> Map {
+        let width = self.width * 3;
+        let height = self.height * 3;
+        let mut map: Vec<Vec<Tile>> = Vec::new();
+
+        for _ in 0..height {
+            map.push(vec![Tile::Ground; width]);
+        }
+
+        for (y, row) in self.map.iter().enumerate() {
+            for (x, tile) in row.iter().enumerate() {
+                let x = x * 3 + 1;
+                let y = y * 3 + 1;
+
+                map[y][x] = *tile;
+                map[y - 1][x - 1] = Tile::Ground;
+                map[y - 1][x + 1] = Tile::Ground;
+                map[y + 1][x - 1] = Tile::Ground;
+                map[y + 1][x + 1] = Tile::Ground;
+
+                match tile {
+                    Tile::NToS => {
+                        map[y][x - 1] = Tile::Ground;
+                        map[y][x + 1] = Tile::Ground;
+                        map[y - 1][x] = Tile::NToS;
+                        map[y + 1][x] = Tile::NToS;
+                    }
+                    Tile::EToW => {
+                        map[y][x - 1] = Tile::EToW;
+                        map[y][x + 1] = Tile::EToW;
+                        map[y - 1][x] = Tile::Ground;
+                        map[y + 1][x] = Tile::Ground;
+                    }
+                    Tile::NToE => {
+                        map[y][x - 1] = Tile::Ground;
+                        map[y][x + 1] = Tile::EToW;
+                        map[y - 1][x] = Tile::NToS;
+                        map[y + 1][x] = Tile::Ground;
+                    }
+                    Tile::NToW => {
+                        map[y][x - 1] = Tile::EToW;
+                        map[y][x + 1] = Tile::Ground;
+                        map[y - 1][x] = Tile::NToS;
+                        map[y + 1][x] = Tile::Ground;
+                    }
+                    Tile::SToW => {
+                        map[y][x - 1] = Tile::EToW;
+                        map[y][x + 1] = Tile::Ground;
+                        map[y - 1][x] = Tile::Ground;
+                        map[y + 1][x] = Tile::NToS;
+                    }
+                    Tile::SToE => {
+                        map[y][x - 1] = Tile::Ground;
+                        map[y][x + 1] = Tile::EToW;
+                        map[y - 1][x] = Tile::Ground;
+                        map[y + 1][x] = Tile::NToS;
+                    }
+                    Tile::Ground => {
+                        map[y][x - 1] = Tile::Ground;
+                        map[y][x + 1] = Tile::Ground;
+                        map[y - 1][x] = Tile::Ground;
+                        map[y + 1][x] = Tile::Ground;
+                    }
+                    Tile::Start => {
+                        let starting_directions =
+                            find_starting_directions(&((x - 1) / 3, (y - 1) / 3), self);
+                        map[y][x - 1] = Tile::Ground;
+                        map[y][x + 1] = Tile::Ground;
+                        map[y - 1][x] = Tile::Ground;
+                        map[y + 1][x] = Tile::Ground;
+                        for (_, dir) in starting_directions {
+                            match dir {
+                                Direction::East => map[y][x - 1] = Tile::EToW,
+                                Direction::West => map[y][x + 1] = Tile::EToW,
+                                Direction::South => map[y - 1][x] = Tile::NToS,
+                                Direction::North => map[y + 1][x] = Tile::NToS,
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Map { map, width, height }
+    }
+
+    fn fill(&self) -> HashSet<Point> {
+        let mut filled_points: HashSet<Point> = HashSet::new();
+        let mut queue: Vec<Point> = vec![(0, 0)];
+
+        while let Some(point) = queue.pop() {
+            if self.get(&point) == Tile::Ground {
+                filled_points.insert(point);
+                let (x, y) = point;
+                if x > 0 {
+                    let p = (x - 1, y);
+                    if !filled_points.contains(&p) {
+                        queue.push(p);
+                    }
+                }
+
+                if x < self.width - 1 {
+                    let p = (x + 1, y);
+                    if !filled_points.contains(&p) {
+                        queue.push(p);
+                    }
+                }
+
+                if y > 0 {
+                    let p = (x, y - 1);
+                    if !filled_points.contains(&p) {
+                        queue.push(p);
+                    }
+                }
+
+                if y < self.height - 1 {
+                    let p = (x, y + 1);
+                    if !filled_points.contains(&p) {
+                        queue.push(p);
+                    }
+                }
+            }
+        }
+
+        filled_points
+    }
+}
+
+impl Display for Map {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let result: Vec<String> = self
+            .map
+            .iter()
+            .map(|row| String::from_iter(row.iter().map(|tile| tile.to_char())))
+            .collect();
+
+        write!(f, "{}", result.join("\n"))
+    }
 }
 
 fn parse_map(data: &str) -> Result<Map, String> {
@@ -194,16 +357,16 @@ fn find_starting_directions(start: &Point, map: &Map) -> Vec<(Point, Direction)>
 }
 
 fn trace_walk(start: Point, entering_direction: Direction, map: &Map) -> HashMap<Point, usize> {
-    let mut curent_location = start;
+    let mut current_location = start;
     let mut current_direction = entering_direction;
     let mut trace: HashMap<Point, usize> = HashMap::new();
     let mut distance = 1;
 
-    while map.get(&curent_location) != Tile::Start {
-        trace.insert(curent_location, distance);
-        let (location, direction) = map.walk(&curent_location, &current_direction).unwrap();
+    while map.get(&current_location) != Tile::Start {
+        trace.insert(current_location, distance);
+        let (location, direction) = map.walk(&current_location, &current_direction).unwrap();
         distance += 1;
-        curent_location = location;
+        current_location = location;
         current_direction = direction;
     }
 
@@ -212,7 +375,7 @@ fn trace_walk(start: Point, entering_direction: Direction, map: &Map) -> HashMap
 
 fn main() -> Result<(), String> {
     let data = fs::read_to_string("day10.txt").expect("Can't read input file");
-    let map = parse_map(&data)?;
+    let mut map = parse_map(&data)?;
     let start = find_start(&map).unwrap();
     let starting_directions = find_starting_directions(&start, &map);
     let traces: Vec<HashMap<Point, usize>> = starting_directions
@@ -236,6 +399,28 @@ fn main() -> Result<(), String> {
     let part1_result = merged_trace.values().max().unwrap();
 
     println!("Day 10 Part 1: {}", part1_result);
+
+    let mut loop_track: HashSet<Point> = merged_trace.keys().copied().collect();
+    loop_track.insert(start);
+
+    map.sweep(&loop_track);
+    let expanded_map = map.expand();
+    let filled_points = expanded_map.fill();
+
+    let filled_count: Vec<Point> = filled_points
+        .iter()
+        .filter_map(|(x, y)| {
+            if x > &0 && (x - 1) % 3 == 0 && y > &0 && (y - 1) % 3 == 0 {
+                Some(((x - 1) / 3, (y - 1) / 3))
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    let part2_result = (map.width * map.height) - filled_count.len() - loop_track.len();
+
+    println!("Day 10 Part 2: {}", part2_result);
 
     Ok(())
 }
