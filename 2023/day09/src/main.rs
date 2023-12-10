@@ -15,7 +15,7 @@ fn is_all_zero(numbers: &[i64]) -> bool {
     numbers.iter().all(|n| *n == 0)
 }
 
-fn find_next_number(numbers: Vec<i64>) -> i64 {
+fn build_diff_stack(numbers: Vec<i64>) -> Vec<Vec<i64>> {
     let mut numbers_stack: Vec<Vec<i64>> = Vec::new();
     let mut index = 0;
     numbers_stack.push(numbers);
@@ -27,9 +27,20 @@ fn find_next_number(numbers: Vec<i64>) -> i64 {
     }
 
     numbers_stack
+}
+
+fn find_next_number(numbers: Vec<i64>) -> i64 {
+    build_diff_stack(numbers)
         .iter()
         .rev()
         .fold(0, |acc, n| n.last().unwrap() + acc)
+}
+
+fn find_prev_number(numbers: Vec<i64>) -> i64 {
+    build_diff_stack(numbers)
+        .iter()
+        .rev()
+        .fold(0, |acc, n| n.first().unwrap() - acc)
 }
 
 fn main() {
@@ -42,4 +53,12 @@ fn main() {
         .sum();
 
     println!("Day 9 Part 1: {}", part1_result);
+
+    let part1_result: i64 = data
+        .lines()
+        .map(parse_number_list)
+        .map(find_prev_number)
+        .sum();
+
+    println!("Day 9 Part 2: {}", part1_result);
 }
