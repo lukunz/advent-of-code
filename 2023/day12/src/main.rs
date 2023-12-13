@@ -50,6 +50,20 @@ impl Entry {
 
         new_pattern
     }
+
+    fn expand(&self) -> Self {
+        let mut new_pattern: Vec<Spring> = Vec::new();
+        for _ in 0..5 {
+            new_pattern.append(&mut self.pattern.clone());
+            new_pattern.push(Spring::Unknown);
+        }
+        new_pattern.pop();
+
+        Self {
+            pattern: new_pattern,
+            numbers: self.numbers.repeat(5),
+        }
+    }
 }
 
 fn parse_input(data: &str) -> Vec<Entry> {
@@ -167,4 +181,14 @@ fn main() {
         .sum();
 
     println!("Day 12 Part 1: {}", part1_result);
+
+    let entries = parse_input(&data);
+    let mut memo: HashMap<Entry, usize> = HashMap::new();
+
+    let part2_result: usize = entries
+        .into_iter()
+        .map(|entry| count_arrangements(entry.expand(), &mut memo))
+        .sum();
+
+    println!("Day 12 Part 2: {}", part2_result);
 }
