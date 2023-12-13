@@ -38,58 +38,71 @@ fn parse_input(data: &str) -> Vec<Map> {
     result
 }
 
-fn is_mirrored_at_row(map: &Map, row: usize) -> bool {
-    (0..=row).all(|index| {
-        let mirrored_index = 2 * row - index - 1;
-
-        if mirrored_index >= map.len() {
-            true
-        } else {
-            map[index]
-                .iter()
-                .zip(&map[mirrored_index])
-                .all(|(a, b)| a == b)
-        }
-    })
+fn count_differences(a: &[Ground], b: &[Ground]) -> usize {
+    a.iter()
+        .zip(b)
+        .map(|(a, b)| if a == b { 0 } else { 1 })
+        .sum()
 }
 
-fn is_mirrored_at_col(map: &Map, col: usize) -> bool {
-    (0..=col).all(|index| {
-        let mirrored_index = 2 * col - index - 1;
+fn count_mirror_defects_at_row(map: &Map, row: usize) -> usize {
+    (0..row)
+        .map(|index| {
+            let mirrored_index = 2 * row - index - 1;
 
-        if mirrored_index >= map[0].len() {
-            true
-        } else {
-            map.iter()
-                .map(|row| (row[index], row[mirrored_index]))
-                .all(|(a, b)| a == b)
-        }
-    })
+            if mirrored_index >= map.len() {
+                0
+            } else {
+                count_differences(&map[index], &map[mirrored_index])
+            }
+        })
+        .sum()
 }
 
-fn main() {
-    let data = fs::read_to_string("day13.txt").expect("Can't read input file");
+fn count_mirror_defects_at_col(map: &Map, col: usize) -> usize {
+    (0..col)
+        .map(|index| {
+            let mirrored_index = 2 * col - index - 1;
 
-    let maps = parse_input(&data);
+            if mirrored_index >= map[0].len() {
+                0
+            } else {
+                let col_a: Vec<Ground> = map.iter().map(|row| row[index]).collect();
+                let col_b: Vec<Ground> = map.iter().map(|row| row[mirrored_index]).collect();
 
-    let part1_result: usize = maps
-        .iter()
+                count_differences(&col_a, &col_b)
+            }
+        })
+        .sum()
+}
+
+fn calculate_result(maps: &[Map], defects: usize) -> usize {
+    maps.iter()
         .map(|map| {
             for row in 1..map.len() {
-                if is_mirrored_at_row(map, row) {
+                if count_mirror_defects_at_row(map, row) == defects {
                     return row * 100;
                 }
             }
 
             for col in 1..map[0].len() {
-                if is_mirrored_at_col(map, col) {
+                if count_mirror_defects_at_col(map, col) == defects {
                     return col;
                 }
             }
 
             0
         })
-        .sum();
+        .sum()
+}
+fn main() {
+    let data = fs::read_to_string("day13.txt").expect("Can't read input file");
+
+    let maps = parse_input(&data);
+
+    let part1_result = calculate_result(&maps, 0);
+    let part2_result = calculate_result(&maps, 1);
 
     println!("Day 13 Part 1: {}", part1_result);
+    println!("Day 13 Part 2: {}", part2_result);
 }
