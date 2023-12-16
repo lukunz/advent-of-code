@@ -168,4 +168,39 @@ fn main() {
     let part1_result = fire_beam(&map, (Point { x: 0, y: 0 }, Direction::Right));
 
     println!("Day 16 Part 1: {}", part1_result);
+
+    let mut part2_result = 0;
+
+    part2_result = (0..map.width).fold(part2_result, |result, x| {
+        result.max(fire_beam(&map, (Point { x, y: 0 }, Direction::Down)))
+    });
+    part2_result = (0..map.width).fold(part2_result, |result, x| {
+        result.max(fire_beam(
+            &map,
+            (
+                Point {
+                    x,
+                    y: map.height - 1,
+                },
+                Direction::Up,
+            ),
+        ))
+    });
+    part2_result = (0..map.height).fold(part2_result, |result, y| {
+        result.max(fire_beam(&map, (Point { x: 0, y }, Direction::Right)))
+    });
+    part2_result = (0..map.height).fold(part2_result, |result, y| {
+        result.max(fire_beam(
+            &map,
+            (
+                Point {
+                    x: map.width - 1,
+                    y,
+                },
+                Direction::Left,
+            ),
+        ))
+    });
+
+    println!("Day 16 Part 2: {}", part2_result);
 }
