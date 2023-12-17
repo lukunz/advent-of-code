@@ -1,4 +1,5 @@
-use std::collections::{HashMap, VecDeque};
+use std::cmp::Ordering;
+use std::collections::HashMap;
 use std::fs;
 
 #[derive(Clone)]
@@ -6,6 +7,8 @@ struct Map {
     tiles: Vec<Vec<u32>>,
     width: usize,
     height: usize,
+    start: Point,
+    target: Point,
 }
 
 #[derive(Eq, PartialEq, Copy, Clone, Debug, Hash)]
@@ -28,6 +31,12 @@ struct Path {
     direction: Direction,
     steps_in_direction: usize,
     path: Vec<Point>,
+    distance_to_target: usize,
+}
+
+struct Limits {
+    min: usize,
+    max: usize,
 }
 
 impl Map {
@@ -44,6 +53,8 @@ impl Map {
             tiles,
             width,
             height,
+            start: Point::from_xy(0, 0),
+            target: Point::from_xy(width - 1, height - 1),
         }
     }
 
@@ -66,6 +77,10 @@ impl Direction {
 impl Point {
     fn from_xy(x: usize, y: usize) -> Self {
         Self { x, y }
+    }
+
+    fn distance(&self, other: &Self) -> usize {
+        self.x.abs_diff(other.x) + self.y.abs_diff(other.y)
     }
 
     fn move_in_direction(&self, direction: &Direction, map: &Map) -> Option<Self> {
@@ -103,12 +118,13 @@ impl Point {
 }
 
 impl Path {
-    fn from_point_direction(point: Point, direction: Direction) -> Self {
+    fn from_point_direction(point: Point, direction: Direction, target: &Point) -> Self {
         Self {
             point,
             direction,
             steps_in_direction: 1,
             path: Vec::new(),
+            distance_to_target: point.distance(target),
         }
     }
 
@@ -117,20 +133,34 @@ impl Path {
     }
 }
 
-fn move_path(
-    path: Path,
-    map: &Map,
-    queue: &mut VecDeque<Path>,
-    visited: &mut HashMap<Point, u32>,
-    directed_visited: &mut HashMap<(Point, Direction, usize), u32>,
-    target: &Point,
-    lowes_heat_load: u32,
-) -> Option<Path> {
-    let new_directions = if path.steps_in_direction >= 3 {
+impl Eq for Path {}
+
+impl PartialEq<Self> for Path {
+    fn eq(&self, other: &Self) -> bool {
+        self.cmp(other) == Ordering::Equal
+    }
+}
+
+impl PartialOrd<Self> for Path {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Path {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.distance_to_target.cmp(&other.distance_to_target)
+    }
+}
+
+fn calculate_new_directions(path: &Path, limits: &Limits) -> Vec<Direction> {
+    if path.steps_in_direction >= limits.max {
         match path.direction {
             Direction::North | Direction::South => vec![Direction::East, Direction::West],
             Direction::East | Direction::West => vec![Direction::North, Direction::South],
         }
+    } else if path.steps_in_direction < limits.min {
+        vec![path.direction]
     } else {
         let opposite = path.direction.opposite();
         vec![
@@ -142,13 +172,23 @@ fn move_path(
         .into_iter()
         .filter(|&d| d != opposite)
         .collect()
-    };
+    }
+}
 
+fn move_path(
+    path: Path,
+    map: &Map,
+    queue: &mut Vec<Path>,
+    visited: &mut HashMap<Point, u32>,
+    directed_visited: &mut HashMap<(Point, Direction, usize), u32>,
+    lowes_heat_load: u32,
+    limits: &Limits,
+) -> Option<Path> {
     let mut result = None;
 
-    for direction in new_directions {
+    for direction in calculate_new_directions(&path, limits) {
         if let Some(point) = path.point.move_in_direction(&direction, map) {
-            let new_path = create_new_path(&path, direction, point);
+            let new_path = create_new_path(&path, direction, point, limits, &map.target);
 
             let new_heat_load = new_path.calculate_heat_load(map);
 
@@ -169,17 +209,19 @@ fn move_path(
                 new_heat_load,
             );
 
-            if let Some(&heat_load) = visited.get(&point) {
-                if heat_load > new_heat_load {
+            if new_path.steps_in_direction >= limits.min {
+                if let Some(&heat_load) = visited.get(&point) {
+                    if heat_load > new_heat_load {
+                        visited.insert(point, new_heat_load);
+                    }
+                } else {
                     visited.insert(point, new_heat_load);
                 }
-            } else {
-                visited.insert(point, new_heat_load);
             }
 
-            if &new_path.point != target {
-                queue.push_back(new_path);
-            } else {
+            if new_path.point != map.target {
+                queue.push(new_path);
+            } else if new_path.steps_in_direction >= limits.min {
                 result = Some(new_path);
             }
         }
@@ -188,7 +230,13 @@ fn move_path(
     result
 }
 
-fn create_new_path(old_path: &Path, direction: Direction, point: Point) -> Path {
+fn create_new_path(
+    old_path: &Path,
+    direction: Direction,
+    point: Point,
+    limits: &Limits,
+    target: &Point,
+) -> Path {
     let mut new_path_vec = old_path.path.clone();
     new_path_vec.push(point);
 
@@ -196,42 +244,46 @@ fn create_new_path(old_path: &Path, direction: Direction, point: Point) -> Path 
         point,
         direction,
         steps_in_direction: if old_path.direction == direction {
-            (old_path.steps_in_direction % 3) + 1
+            (old_path.steps_in_direction % limits.max) + 1
         } else {
             1
         },
         path: new_path_vec,
+        distance_to_target: point.distance(target),
     }
 }
 
-fn explore_all_paths(map: &Map, start: Point, target: Point) -> u32 {
-    let mut queue: VecDeque<Path> = VecDeque::new();
-    queue.push_back(Path::from_point_direction(start, Direction::North));
-    queue.push_back(Path::from_point_direction(start, Direction::East));
-    queue.push_back(Path::from_point_direction(start, Direction::South));
-    queue.push_back(Path::from_point_direction(start, Direction::West));
+fn explore_all_paths(map: &Map, limits: &Limits) -> u32 {
+    let mut queue: Vec<Path> = vec![
+        Path::from_point_direction(map.start, Direction::North, &map.target),
+        Path::from_point_direction(map.start, Direction::East, &map.target),
+        Path::from_point_direction(map.start, Direction::South, &map.target),
+        Path::from_point_direction(map.start, Direction::West, &map.target),
+    ];
 
     let mut visited: HashMap<Point, u32> = HashMap::new();
     let mut directed_visited: HashMap<(Point, Direction, usize), u32> = HashMap::new();
 
     let mut lowest_heat_load = u32::MAX;
 
-    while let Some(path) = queue.pop_back() {
+    while let Some(path) = queue.pop() {
         if let Some(path) = move_path(
             path,
             map,
             &mut queue,
             &mut visited,
             &mut directed_visited,
-            &target,
             lowest_heat_load,
+            limits,
         ) {
             let new_heat_load = path.calculate_heat_load(map);
             lowest_heat_load = lowest_heat_load.min(new_heat_load);
         }
+
+        queue.sort();
     }
 
-    *visited.get(&target).unwrap()
+    *visited.get(&map.target).unwrap()
 }
 
 fn main() {
@@ -239,11 +291,9 @@ fn main() {
 
     let map = Map::from_str(&data);
 
-    let part1_result = explore_all_paths(
-        &map,
-        Point::from_xy(0, 0),
-        Point::from_xy(map.width - 1, map.height - 1),
-    );
-
+    let part1_result = explore_all_paths(&map, &Limits { min: 1, max: 3 });
     println!("Day 17 Part 1: {}", part1_result);
+
+    let part2_result = explore_all_paths(&map, &Limits { min: 4, max: 10 });
+    println!("Day 17 Part 2: {}", part2_result);
 }
