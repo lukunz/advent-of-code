@@ -49,6 +49,9 @@ version = "0.1.0"
 [[package]]
 name = "aoc2023-day18"
 version = "0.1.0"
+dependencies = [
+ "rayon",
+]
 
 [[package]]
 name = "aod2023"
