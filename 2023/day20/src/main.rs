@@ -1,3 +1,4 @@
+use std::cmp::max;
 use std::collections::{HashMap, VecDeque};
 use std::fs;
 
@@ -54,16 +55,7 @@ fn parse_input(data: &str) -> Connections {
     }
 
     for label in conjunction_labels {
-        let input_label: Vec<String> = connections
-            .iter()
-            .filter_map(|(l, c)| {
-                if c.outputs.contains(&label.into()) {
-                    Some(l.clone())
-                } else {
-                    None
-                }
-            })
-            .collect();
+        let input_label = find_inputs(&connections, label);
 
         let conjunction = connections.get_mut(label).unwrap();
         if let Module::Conjunction(inputs) = &mut conjunction.module {
@@ -74,6 +66,20 @@ fn parse_input(data: &str) -> Connections {
     }
 
     connections
+}
+
+fn find_inputs(connections: &Connections, label: &str) -> Vec<String> {
+    let input_label: Vec<String> = connections
+        .iter()
+        .filter_map(|(l, c)| {
+            if c.outputs.contains(&label.into()) {
+                Some(l.clone())
+            } else {
+                None
+            }
+        })
+        .collect();
+    input_label
 }
 
 fn send_signal(
@@ -121,10 +127,59 @@ fn process_signal(
     }
 }
 
-fn main() {
-    let data = fs::read_to_string("day20.txt").expect("Can't read input file");
+fn prime_factors(mut n: u64) -> HashMap<u64, u64> {
+    let mut factors: Vec<u64> = Vec::new();
 
-    let mut connections = parse_input(&data);
+    while n % 2 == 0 {
+        factors.push(2);
+        n /= 2;
+    }
+
+    for i in 3..(n as f64).sqrt() as u64 {
+        while n % i == 0 {
+            factors.push(i);
+            n /= i;
+        }
+    }
+
+    if n > 2 {
+        factors.push(n);
+    }
+
+    let mut result: HashMap<u64, u64> = HashMap::new();
+
+    for f in factors {
+        if let Some(f_count) = result.get(&f) {
+            result.insert(f, f_count + 1);
+        } else {
+            result.insert(f, 1);
+        }
+    }
+
+    result
+}
+
+fn find_lcm(numbers: &[u64]) -> u64 {
+    let mut all_factors: HashMap<u64, u64> = HashMap::new();
+
+    for factors in numbers.iter().copied().map(prime_factors) {
+        for (factor, f_count) in factors {
+            if let Some(f_count2) = all_factors.get(&factor) {
+                all_factors.insert(factor, max(f_count, *f_count2));
+            } else {
+                all_factors.insert(factor, f_count);
+            }
+        }
+    }
+
+    all_factors
+        .iter()
+        .map(|(factor, count)| factor.pow(*count as u32))
+        .product()
+}
+
+fn solve_part1(data: &str) -> i32 {
+    let mut connections = parse_input(data);
     let mut queue: VecDeque<(String, Signal, String)> = VecDeque::new();
     let mut low_counter = 0;
     let mut high_counter = 0;
@@ -144,7 +199,46 @@ fn main() {
         }
     }
 
-    let part1_result = low_counter * high_counter;
+    low_counter * high_counter
+}
 
-    println!("Day 20 Part 1: {}", part1_result);
+fn solve_part2(data: &str) -> u64 {
+    let mut connections = parse_input(data);
+    let mut queue: VecDeque<(String, Signal, String)> = VecDeque::new();
+    let rx_inputs: Vec<String> = find_inputs(&connections, "rx")
+        .iter()
+        .flat_map(|l| find_inputs(&connections, l))
+        .collect();
+    let mut rx_input_cycles: HashMap<String, u64> = HashMap::new();
+
+    for button_press in 1.. {
+        queue.push_back(("button".into(), Signal::Low, "broadcaster".into()));
+
+        while let Some((sender, signal, receiver)) = queue.pop_front() {
+            if signal == Signal::High
+                && rx_inputs.contains(&sender)
+                && !rx_input_cycles.contains_key(&sender)
+            {
+                rx_input_cycles.insert(sender.clone(), button_press);
+            }
+
+            if let Some(connection) = connections.get_mut(&receiver) {
+                process_signal(&sender, &receiver, signal, connection, &mut queue);
+            }
+        }
+
+        if rx_input_cycles.len() == rx_inputs.len() {
+            break;
+        }
+    }
+
+    let numbers: Vec<u64> = rx_input_cycles.values().copied().collect();
+    find_lcm(&numbers)
+}
+
+fn main() {
+    let data = fs::read_to_string("day20.txt").expect("Can't read input file");
+
+    println!("Day 20 Part 1: {}", solve_part1(&data));
+    println!("Day 20 Part 2: {}", solve_part2(&data));
 }
