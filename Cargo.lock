@@ -58,6 +58,10 @@ name = "aoc2023-day19"
 version = "0.1.0"
 
 [[package]]
+name = "aoc2023-day20"
+version = "0.1.0"
+
+[[package]]
 name = "aod2023"
 version = "0.1.0"
 dependencies = [
