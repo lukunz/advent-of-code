@@ -148,36 +148,98 @@ impl Map {
         })
     }
 
-    fn can_be_disintegrated(&self, brick_index: usize) -> bool {
-        let supports = |block: &Point| {
+    fn supports_map(&self) -> Vec<HashSet<usize>> {
+        let supports = |block: &Point, brick_index: usize| {
             self.map[block.z + 1][block.y][block.x]
                 .iter()
-                .filter(|&index| *index != brick_index)
+                .filter(move |&index| *index != brick_index)
         };
 
-        let supported_by = |block: &Point, except_index: usize| {
+        self.bricks
+            .iter()
+            .enumerate()
+            .map(|(index, brick)| {
+                brick
+                    .blocks
+                    .iter()
+                    .flat_map(|brick| supports(brick, index))
+                    .copied()
+                    .collect()
+            })
+            .collect()
+    }
+
+    fn supported_by_map(&self) -> Vec<HashSet<usize>> {
+        let supported_by = |block: &Point, brick_index: usize| {
             self.map[block.z - 1][block.y][block.x]
                 .iter()
-                .filter(move |&index| *index != brick_index && *index != except_index)
+                .filter(move |&index| *index != brick_index)
         };
 
-        let supported_bricks: HashSet<&usize> = self.bricks[brick_index]
-            .blocks
+        self.bricks
             .iter()
-            .flat_map(supports)
-            .collect();
+            .enumerate()
+            .map(|(index, brick)| {
+                brick
+                    .blocks
+                    .iter()
+                    .flat_map(|brick| supported_by(brick, index))
+                    .copied()
+                    .collect()
+            })
+            .collect()
+    }
 
-        let supported_by_bricks = |index: &usize| {
-            self.bricks[*index]
-                .blocks
+    fn can_be_disintegrated(
+        &self,
+        brick_index: usize,
+        supported_map: &[HashSet<usize>],
+        supported_by_map: &[HashSet<usize>],
+    ) -> bool {
+        supported_map[brick_index].iter().all(|&index| {
+            supported_by_map[index]
                 .iter()
-                .flat_map(|block| supported_by(block, *index))
-                .collect::<HashSet<&usize>>()
-        };
+                .filter(|i| **i != brick_index)
+                .count()
+                > 0
+        })
+    }
 
-        supported_bricks
+    fn count_falling_bricks(
+        &self,
+        brick_index: usize,
+        supported_by_map: &[HashSet<usize>],
+    ) -> usize {
+        let mut falling_bricks = 0;
+        let mut ignored_indices = vec![brick_index];
+
+        let min_z = self.bricks[brick_index]
+            .start
+            .z
+            .min(self.bricks[brick_index].end.z);
+
+        for (index, _) in self
+            .bricks
             .iter()
-            .all(|&index| !supported_by_bricks(index).is_empty())
+            .enumerate()
+            .filter(|(_, brick)| brick.start.z.min(brick.end.z) > min_z)
+        {
+            if index == brick_index {
+                continue;
+            }
+
+            let count: HashSet<&usize> = supported_by_map[index]
+                .iter()
+                .filter(|i| !ignored_indices.contains(i))
+                .collect();
+
+            if count.is_empty() {
+                falling_bricks += 1;
+                ignored_indices.push(index);
+            }
+        }
+
+        falling_bricks
     }
 }
 
@@ -197,13 +259,24 @@ fn main() {
 
     let mut map = Map::from(bricks);
     map.condense();
+    let supports_map = map.supports_map();
+    let supported_by_map = map.supported_by_map();
 
     let part1_result = map
         .bricks
         .iter()
         .enumerate()
-        .filter(|(index, _)| map.can_be_disintegrated(*index))
+        .filter(|(index, _)| map.can_be_disintegrated(*index, &supports_map, &supported_by_map))
         .count();
 
     println!("Day 22 Part 1: {}", part1_result);
+
+    let part2_result: usize = map
+        .bricks
+        .iter()
+        .enumerate()
+        .map(|(index, _)| map.count_falling_bricks(index, &supported_by_map))
+        .sum();
+
+    println!("Day 22 Part 2: {}", part2_result);
 }
