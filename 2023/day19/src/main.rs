@@ -87,7 +87,7 @@ impl WorkflowStep {
 type Workflow = Vec<WorkflowStep>;
 type WorkflowMap = HashMap<String, Workflow>;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 struct Item {
     x: u64,
     m: u64,
@@ -96,6 +96,24 @@ struct Item {
 }
 
 impl Item {
+    fn new_min() -> Self {
+        Self {
+            x: 0,
+            m: 0,
+            a: 0,
+            s: 0,
+        }
+    }
+
+    fn new_max() -> Self {
+        Self {
+            x: 4001,
+            m: 4001,
+            a: 4001,
+            s: 4001,
+        }
+    }
+
     fn set(&mut self, cat: &Category, value: u64) {
         match cat {
             Category::X => self.x = value,
@@ -137,6 +155,45 @@ impl Item {
 
     fn sum(&self) -> u64 {
         self.x + self.m + self.a + self.s
+    }
+}
+
+#[derive(Clone, Debug)]
+struct ItemRange {
+    min: Item,
+    max: Item,
+}
+
+impl ItemRange {
+    fn new() -> Self {
+        Self {
+            min: Item::new_min(),
+            max: Item::new_max(),
+        }
+    }
+
+    fn apply(&mut self, step: &WorkflowStep) {
+        match step {
+            WorkflowStep::Bigger(cat, value, _) => {
+                self.min.set(cat, self.min.get(cat).max(*value));
+            }
+            WorkflowStep::Smaller(cat, value, _) => {
+                self.max.set(cat, self.max.get(cat).min(*value));
+            }
+            WorkflowStep::Just(_) => {}
+        }
+    }
+
+    fn apply_inverse(&mut self, step: &WorkflowStep) {
+        match step {
+            WorkflowStep::Bigger(cat, value, _) => {
+                self.max.set(cat, self.max.get(cat).min(*value + 1));
+            }
+            WorkflowStep::Smaller(cat, value, _) => {
+                self.min.set(cat, self.min.get(cat).max(*value - 1));
+            }
+            WorkflowStep::Just(_) => {}
+        }
     }
 }
 
@@ -203,6 +260,63 @@ fn process_item(workflows: &WorkflowMap, item: &Item) -> FinalResult {
     }
 }
 
+fn find_paths(
+    label: &str,
+    workflows: &WorkflowMap,
+    mut current_limits: ItemRange,
+) -> Vec<ItemRange> {
+    let workflow = workflows.get(label).unwrap();
+    let mut ranges: Vec<ItemRange> = Vec::new();
+
+    for step in workflow {
+        match step {
+            WorkflowStep::Just(Result::Accepted) => {
+                ranges.push(current_limits.clone());
+            }
+            WorkflowStep::Just(Result::Rejected) => {}
+            WorkflowStep::Just(Result::Send(label)) => {
+                let mut new_ranges = find_paths(label, workflows, current_limits.clone());
+                ranges.append(&mut new_ranges);
+            }
+            WorkflowStep::Bigger(_, _, result) | WorkflowStep::Smaller(_, _, result) => {
+                let mut new_limit = current_limits.clone();
+                new_limit.apply(step);
+                match result {
+                    Result::Accepted => ranges.push(new_limit),
+                    Result::Rejected => {}
+                    Result::Send(label) => {
+                        let mut new_ranges = find_paths(label, workflows, new_limit);
+                        ranges.append(&mut new_ranges);
+                    }
+                }
+
+                current_limits.apply_inverse(step);
+            }
+        }
+    }
+
+    ranges
+}
+
+fn count_valid_combinations(ranges: &Vec<ItemRange>) -> u64 {
+    let mut result = 0;
+
+    for range in ranges {
+        if range.max.x > range.min.x
+            && range.max.m > range.min.m
+            && range.max.a > range.min.a
+            && range.max.s > range.min.s
+        {
+            result += (range.max.x - range.min.x - 1)
+                * (range.max.m - range.min.m - 1)
+                * (range.max.a - range.min.a - 1)
+                * (range.max.s - range.min.s - 1);
+        }
+    }
+
+    result
+}
+
 fn main() {
     let data = fs::read_to_string("day19.txt").expect("Can't read input file");
 
@@ -220,4 +334,10 @@ fn main() {
     let part1_result: u64 = accepted.iter().map(|item| item.sum()).sum();
 
     println!("Day 19 Part 1: {}", part1_result);
+
+    let paths = find_paths("in", &workflows, ItemRange::new());
+
+    let part2_result = count_valid_combinations(&paths);
+
+    println!("Day 19 Part 2: {}", part2_result);
 }
