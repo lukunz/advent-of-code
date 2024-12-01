@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 fn main() {
     let data = include_str!("../day01.txt");
 
@@ -22,4 +24,20 @@ fn main() {
         .sum::<i32>();
 
     println!("Day 01 Part 1: {}", part1_result);
+
+    let mut number_counts: HashMap<i32, i32> = HashMap::new();
+
+    for value in list2 {
+        let count = number_counts.get(&value).unwrap_or(&0) + 1;
+        number_counts.insert(value, count);
+    }
+
+    let mut sum = 0;
+
+    for value in list1 {
+        let count = number_counts.get(&value).unwrap_or(&0);
+        sum += value * count;
+    }
+
+    println!("Day 01 Part 2: {}", sum);
 }
