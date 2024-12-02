@@ -1,11 +1,5 @@
 fn main() {
-    // let data = include_str!("../day02.txt");
-    let data = "7 6 4 2 1
-1 2 7 8 9
-9 7 6 2 1
-1 3 2 4 5
-8 6 4 4 1
-1 3 6 7 9";
+    let data = include_str!("../day02.txt");
     let reports = data
         .lines()
         .map(|line| {
@@ -16,25 +10,41 @@ fn main() {
         .collect::<Vec<_>>();
 
     let mut safe_reports = 0;
+    let mut safe_reports_with_margin = 0;
 
     for report in reports {
-        if report.is_sorted() || report.iter().rev().is_sorted() {
-            let mut report_is_safe = true;
-            for numbers in report.windows(2) {
-                assert_eq!(numbers.len(), 2);
+        if is_report_safe(&report) {
+            safe_reports += 1;
+        } else {
+            for i in 0..report.len() {
+                let mut tmp_report = report.clone();
+                tmp_report.remove(i);
 
-                let diff = numbers[0].abs_diff(numbers[1]);
-                if diff == 0 || diff > 3 {
-                    report_is_safe = false;
+                if is_report_safe(&tmp_report) {
+                    safe_reports_with_margin += 1;
                     break;
                 }
-            }
-
-            if report_is_safe {
-                safe_reports += 1;
             }
         }
     }
 
     println!("Day 02 Part 1: {}", safe_reports);
+    println!("Day 02 Part 2: {}", safe_reports + safe_reports_with_margin);
+}
+
+fn is_report_safe(report: &[u32]) -> bool {
+    if report.is_sorted() || report.iter().rev().is_sorted() {
+        for numbers in report.windows(2) {
+            assert_eq!(numbers.len(), 2);
+
+            let diff = numbers[0].abs_diff(numbers[1]);
+            if diff == 0 || diff > 3 {
+                return false;
+            }
+        }
+
+        true
+    } else {
+        false
+    }
 }
