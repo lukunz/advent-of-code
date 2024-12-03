@@ -1,47 +1,93 @@
+enum Token {
+    Mul(u32, u32),
+    Do,
+    Dont,
+}
+
 fn main() {
     let data = include_str!("../day03.txt");
     let mut rest = data;
-    let mut numbers: Vec<(u32, u32)> = Vec::new();
+    let mut tokens: Vec<Token> = Vec::new();
 
-    while let Some(start) = rest.find("mul(") {
-        rest = &rest[start + 4..];
-
-        let number = parse_number(rest);
-
-        if number.is_none() {
-            continue;
+    loop {
+        if rest.is_empty() {
+            break;
         }
 
-        let (number_a, end) = number.unwrap();
-        rest = &rest[end..];
+        match rest {
+            s if s.starts_with("mul(") => {
+                let number = parse_mul(rest);
+                rest = &rest[4..];
 
-        if !is_next_char(rest, ',') {
-            continue;
+                if let Some((a, b)) = number {
+                    tokens.push(Token::Mul(a, b));
+                }
+            }
+            s if s.starts_with("do()") => {
+                tokens.push(Token::Do);
+                rest = &rest[4..];
+            }
+            s if s.starts_with("don't()") => {
+                tokens.push(Token::Dont);
+                rest = &rest[7..];
+            }
+            _ => {
+                rest = &rest[1..];
+            }
         }
-
-        rest = &rest[1..];
-
-        let number = parse_number(rest);
-
-        if number.is_none() {
-            continue;
-        }
-
-        let (number_b, end) = number.unwrap();
-        rest = &rest[end..];
-
-        if !is_next_char(rest, ')') {
-            continue;
-        }
-
-        rest = &rest[1..];
-
-        numbers.push((number_a, number_b));
     }
 
-    let sum = numbers.iter().map(|(a, b)| a * b).sum::<u32>();
+    let mut part1_sum = 0;
+    let mut part2_sum = 0;
+    let mut enabled = true;
 
-    println!("Day 03 Part 1: {}", sum);
+    for token in tokens {
+        match token {
+            Token::Mul(x, y) => {
+                part1_sum += x * y;
+
+                if enabled {
+                    part2_sum += x * y;
+                }
+            }
+            Token::Do => {
+                enabled = true;
+            }
+            Token::Dont => {
+                enabled = false;
+            }
+        }
+    }
+
+    println!("Day 03 Part 1: {}", part1_sum);
+    println!("Day 03 Part 2: {}", part2_sum);
+}
+
+fn parse_mul(input: &str) -> Option<(u32, u32)> {
+    if !input.starts_with("mul(") {
+        return None;
+    }
+
+    let mut rest = input;
+    rest = &rest[4..];
+
+    let (number_a, end) = parse_number(rest)?;
+    rest = &rest[end..];
+
+    if !is_next_char(rest, ',') {
+        return None;
+    }
+
+    rest = &rest[1..];
+
+    let (number_b, end) = parse_number(rest)?;
+    rest = &rest[end..];
+
+    if !is_next_char(rest, ')') {
+        return None;
+    }
+
+    Some((number_a, number_b))
 }
 
 fn parse_number(input: &str) -> Option<(u32, usize)> {
