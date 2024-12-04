@@ -90,6 +90,10 @@ name = "aoc2024-day03"
 version = "0.1.0"
 
 [[package]]
+name = "aoc2024-day04"
+version = "0.1.0"
+
+[[package]]
 name = "aod2023"
 version = "0.1.0"
 dependencies = [
