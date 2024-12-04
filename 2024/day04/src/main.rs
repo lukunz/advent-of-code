@@ -3,6 +3,7 @@ fn main() {
 
     let width = data.find('\n').unwrap() + 1;
     let mut part1_count = 0;
+    let mut part2_count = 0;
 
     for index in 0..data.len() {
         match &data[index..index + 1] {
@@ -34,12 +35,22 @@ fn main() {
                     part1_count += 1;
                 }
             }
+            "A" => {
+                if index > width + 1
+                    && (match_vertical(data, index - width - 1, width + 1, "MAS")
+                        || match_vertical(data, index - width - 1, width + 1, "SAM"))
+                    && (match_vertical(data, index - width + 1, width - 1, "MAS")
+                        || match_vertical(data, index - width + 1, width - 1, "SAM"))
+                {
+                    part2_count += 1;
+                }
+            }
             _ => {}
         }
     }
 
     println!("Day 04 Part 1: {}", part1_count);
-    // println!("Day 04 Part 2: {}", part2_count);
+    println!("Day 04 Part 2: {}", part2_count);
 }
 
 fn match_horizontal(input: &str, index: usize, word: &str) -> bool {
