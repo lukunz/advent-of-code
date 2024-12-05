@@ -25,6 +25,17 @@ impl PartialOrd for Rule {
     }
 }
 
+fn sum_middles(updates: &[Vec<u32>]) -> u32 {
+    updates
+        .iter()
+        .map(|update| {
+            assert_eq!(update.len() % 2, 1);
+
+            update[update.len() / 2]
+        })
+        .sum::<u32>()
+}
+
 fn main() {
     let data = include_str!("../day05.txt");
 
@@ -72,19 +83,27 @@ fn main() {
         })
         .collect::<Vec<_>>();
 
-    let valid_updates = updates
-        .iter()
-        .filter(|&update| update.iter().map(|&number| &rule_book[&number]).is_sorted())
-        .collect::<Vec<_>>();
+    let (valid_updates, invalid_updates): (Vec<_>, Vec<_>) = updates
+        .into_iter()
+        .partition(|update| update.iter().map(|&number| &rule_book[&number]).is_sorted());
 
-    let part1_result = valid_updates
+    let part1_result = sum_middles(&valid_updates);
+
+    let fixed_updates = invalid_updates
         .iter()
         .map(|update| {
-            assert_eq!(update.len() % 2, 1);
+            let mut rules = update
+                .iter()
+                .map(|&number| &rule_book[&number])
+                .collect::<Vec<_>>();
+            rules.sort_by(|a, b| a.partial_cmp(b).unwrap());
 
-            update[update.len() / 2]
+            rules.iter().map(|r| r.before).collect::<Vec<_>>()
         })
-        .sum::<u32>();
+        .collect::<Vec<_>>();
+
+    let part2_result = sum_middles(&fixed_updates);
 
     println!("Day 05 Part 1: {:?}", part1_result);
+    println!("Day 05 Part 2: {:?}", part2_result);
 }
