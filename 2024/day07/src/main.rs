@@ -27,27 +27,28 @@ fn main() {
 
     let part1_result = equations
         .iter()
-        .filter(|eq| is_solvable(eq))
+        .filter(|eq| find_solutions(&eq.operants, false).contains(&eq.result))
+        .map(|eq| eq.result)
+        .sum::<u64>();
+
+    let part2_result = equations
+        .iter()
+        .filter(|eq| find_solutions(&eq.operants, true).contains(&eq.result))
         .map(|eq| eq.result)
         .sum::<u64>();
 
     println!("Day 7 Part 1: {}", part1_result);
+    println!("Day 7 Part 2: {}", part2_result);
 }
 
-fn is_solvable(equation: &Equation) -> bool {
-    let solutions = find_solutions(&equation.operants);
-
-    solutions.contains(&equation.result)
-}
-
-fn find_solutions(ops: &[u64]) -> Vec<u64> {
+fn find_solutions(ops: &[u64], with_concat: bool) -> Vec<u64> {
     match ops {
         [tail @ .., head] => {
             if tail.is_empty() {
                 return vec![*head];
             }
 
-            let solutions = find_solutions(tail);
+            let solutions = find_solutions(tail, with_concat);
             let mut mul_soltions = solutions
                 .iter()
                 .map(|value| *head * value)
@@ -58,6 +59,18 @@ fn find_solutions(ops: &[u64]) -> Vec<u64> {
                 .collect::<Vec<u64>>();
 
             mul_soltions.append(&mut add_solutions);
+
+            if with_concat {
+                let mut concat_solutions = solutions
+                    .iter()
+                    .map(|value| {
+                        let decimal_places = (0..).take_while(|i| 10u64.pow(*i) <= *head).count();
+                        value * 10u64.pow(decimal_places as u32) + head
+                    })
+                    .collect::<Vec<u64>>();
+
+                mul_soltions.append(&mut concat_solutions);
+            }
 
             mul_soltions
         }
