@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-#[derive(Debug, Ord, PartialOrd, Eq, PartialEq)]
+#[derive(Debug, Ord, PartialOrd, Eq, PartialEq, Copy, Clone)]
 struct Position {
     x: i64,
     y: i64,
@@ -48,7 +48,8 @@ fn main() {
         }
     }
 
-    let mut antinodes: BTreeSet<Position> = BTreeSet::new();
+    let mut antinodes_part1: BTreeSet<Position> = BTreeSet::new();
+    let mut antinodes_part2: BTreeSet<Position> = BTreeSet::new();
 
     for (_, positions) in antennas.iter() {
         for i in 0..positions.len() - 1 {
@@ -65,10 +66,33 @@ fn main() {
                 .filter(|position| position != pos_a && position != pos_b)
                 .filter(|position| position.in_bounds(width, height));
 
-                antinodes.extend(possible_antinodes);
+                antinodes_part1.extend(possible_antinodes);
+
+                let mut possible_antinodes: Vec<Position> = Vec::new();
+
+                let mut current_position = *pos_a;
+
+                while current_position.in_bounds(width, height) {
+                    possible_antinodes.push(current_position);
+                    current_position = current_position.add(&distance);
+                }
+
+                current_position = *pos_a;
+
+                while current_position.in_bounds(width, height) {
+                    possible_antinodes.push(current_position);
+                    current_position = current_position.sub(&distance);
+                }
+
+                let possible_antinodes = possible_antinodes
+                    .into_iter()
+                    .filter(|position| position.in_bounds(width, height));
+
+                antinodes_part2.extend(possible_antinodes);
             }
         }
     }
 
-    println!("Day 8 Part 1: {}", antinodes.len());
+    println!("Day 8 Part 1: {}", antinodes_part1.len());
+    println!("Day 8 Part 1: {}", antinodes_part2.len());
 }
