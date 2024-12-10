@@ -1,6 +1,7 @@
 use std::collections::HashSet;
+use std::hash::RandomState;
 
-#[derive(Eq, Hash, PartialEq, Debug)]
+#[derive(Eq, Hash, PartialEq, Debug, Clone)]
 struct Point {
     x: u32,
     y: u32,
@@ -85,24 +86,32 @@ fn main() {
         })
         .collect::<Vec<_>>();
 
-    let part1_result = start_points
+    let trails = start_points
         .into_iter()
         .map(|start_point| {
-            let mut nines = HashSet::new();
+            let mut nines = Vec::new();
             walk(&map, start_point, &mut nines);
 
-            nines.len()
+            nines
         })
+        .collect::<Vec<_>>();
+
+    let part1_result = trails
+        .iter()
+        .map(|nines| HashSet::<_, RandomState>::from_iter(nines.iter()).len())
         .sum::<usize>();
 
+    let part2_result = trails.iter().map(|nines| nines.len()).sum::<usize>();
+
     println!("Day 10 Part 1: {}", part1_result);
+    println!("Day 10 Part 2: {}", part2_result);
 }
 
-fn walk(map: &Map, point: Point, nines: &mut HashSet<Point>) {
+fn walk(map: &Map, point: Point, nines: &mut Vec<Point>) {
     let height = map.get(&point).unwrap();
 
     if height == 9 {
-        nines.insert(point);
+        nines.push(point);
     } else {
         for neighbor in map.neighbors(&point, height + 1) {
             walk(map, neighbor, nines)
