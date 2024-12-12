@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 struct Map {
     plots: Vec<Vec<Plot>>,
@@ -18,10 +18,15 @@ impl Map {
         }
     }
 
-    fn neighbors(&self, plot: &Plot) -> Vec<Plot> {
+    fn neighbors(&self, plot: &Plot) -> Vec<(&Plot, Direction)> {
         let mut neighbors = Vec::new();
 
-        for (diff_x, diff_y) in [(1, 0), (0, 1), (-1, 0), (0, -1)] {
+        for (diff_x, diff_y, dir) in [
+            (1, 0, Direction::East),
+            (0, 1, Direction::South),
+            (-1, 0, Direction::West),
+            (0, -1, Direction::North),
+        ] {
             let x = plot.x.checked_add_signed(diff_x);
             let y = plot.y.checked_add_signed(diff_y);
 
@@ -30,7 +35,7 @@ impl Map {
                 let y = y.unwrap();
 
                 if x < self.width && y < self.height {
-                    neighbors.push(self.plots[y][x]);
+                    neighbors.push((&self.plots[y][x], dir));
                 }
             }
         }
@@ -39,37 +44,38 @@ impl Map {
     }
 }
 
-#[derive(Clone, Copy, Ord, PartialOrd, Eq, PartialEq, Debug)]
+#[derive(Ord, PartialOrd, Eq, PartialEq, Debug)]
 struct Plot {
     label: char,
     x: usize,
     y: usize,
 }
 
-struct Region {
-    plots: Vec<Plot>,
-    neighbour_plots: Vec<Plot>,
+#[derive(Ord, PartialOrd, Eq, PartialEq, Debug)]
+enum Direction {
+    North,
+    East,
+    South,
+    West,
 }
 
-impl Region {
-    fn perimeter_len(&self, map: &Map) -> usize {
-        self.neighbour_plots.len()
-            + self
-                .plots
-                .iter()
-                .map(|p| match (p.x, p.y) {
-                    (0, 0) => 2,
-                    (x, 0) if x == map.width - 1 => 2,
-                    (0, y) if y == map.height - 1 => 2,
-                    (0, _) => 1,
-                    (_, 0) => 1,
-                    (x, y) if x == map.width - 1 && y == map.height - 1 => 2,
-                    (x, _) if x == map.width - 1 => 1,
-                    (_, y) if y == map.height - 1 => 1,
-                    _ => 0,
-                })
-                .sum::<usize>()
+#[derive(Ord, PartialOrd, Eq, PartialEq, Debug)]
+struct Fence {
+    dir: Direction,
+    x: usize,
+    y: usize,
+}
+
+impl Fence {
+    fn new(dir: Direction, x: usize, y: usize) -> Self {
+        Self { dir, x, y }
     }
+}
+
+struct Region<'a> {
+    plots: Vec<&'a Plot>,
+    fence_count: usize,
+    sides_count: usize,
 }
 
 fn main() {
@@ -89,7 +95,7 @@ fn main() {
     let map = Map::new(map);
 
     let mut regions: Vec<Region> = Vec::new();
-    let mut used_plots: BTreeSet<Plot> = BTreeSet::new();
+    let mut used_plots: BTreeSet<&Plot> = BTreeSet::new();
 
     for plot in map.plots.iter().flatten() {
         if !used_plots.contains(plot) {
@@ -101,36 +107,95 @@ fn main() {
 
     let part1_result = regions
         .iter()
-        .map(|region| region.plots.len() * region.perimeter_len(&map))
+        .map(|region| region.plots.len() * region.fence_count)
+        .sum::<usize>();
+
+    let part2_result = regions
+        .iter()
+        .map(|region| region.plots.len() * region.sides_count)
         .sum::<usize>();
 
     println!("Day 12 Part 1: {}", part1_result);
+    println!("Day 12 Part 2: {}", part2_result);
 }
 
-fn find_region(map: &Map, plot: &Plot) -> Region {
-    let mut plots_to_check = vec![*plot];
+fn find_region<'a>(map: &'a Map, plot: &'a Plot) -> Region<'a> {
+    let mut plots_to_check = vec![plot];
     let mut region_plots = BTreeSet::new();
-    let mut region_perimeter = Vec::new();
+    let mut fences = Vec::new();
 
     while let Some(p) = plots_to_check.pop() {
         region_plots.insert(p);
 
-        for neighbor in map.neighbors(&p) {
-            match neighbor.label {
-                l if l == p.label => {
-                    if !region_plots.contains(&neighbor) && !plots_to_check.contains(&neighbor) {
-                        plots_to_check.push(neighbor);
-                    }
+        for (neighbor, dir) in map.neighbors(p) {
+            if neighbor.label == p.label {
+                if !region_plots.contains(&neighbor) && !plots_to_check.contains(&neighbor) {
+                    plots_to_check.push(neighbor);
                 }
-                _ => {
-                    region_perimeter.push(neighbor);
-                }
+            } else {
+                fences.push(Fence::new(dir, p.x, p.y));
             }
         }
     }
 
+    for p in region_plots.iter() {
+        if p.x == 0 {
+            fences.push(Fence::new(Direction::West, p.x, p.y));
+        } else if p.x == map.width - 1 {
+            fences.push(Fence::new(Direction::East, p.x, p.y));
+        }
+
+        if p.y == 0 {
+            fences.push(Fence::new(Direction::North, p.x, p.y));
+        } else if p.y == map.height - 1 {
+            fences.push(Fence::new(Direction::South, p.x, p.y));
+        }
+    }
+
+    let sides = [
+        Direction::North,
+        Direction::South,
+        Direction::East,
+        Direction::West,
+    ]
+    .into_iter()
+    .map(|dir| count_sides(&fences, dir))
+    .sum::<usize>();
+
     Region {
         plots: Vec::from_iter(region_plots),
-        neighbour_plots: region_perimeter,
+        fence_count: fences.len(),
+        sides_count: sides,
     }
+}
+
+fn count_sides(fences: &[Fence], dir: Direction) -> usize {
+    let dir_fences = fences.iter().filter_map(|fence| {
+        if fence.dir == dir {
+            match fence.dir {
+                Direction::East | Direction::West => Some((fence.x, fence.y)),
+                Direction::North | Direction::South => Some((fence.y, fence.x)),
+            }
+        } else {
+            None
+        }
+    });
+
+    let mut grouped_fences: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
+
+    for (group, index) in dir_fences {
+        grouped_fences.entry(group).or_default().push(index);
+    }
+
+    grouped_fences
+        .values_mut()
+        .map(|indexes| {
+            indexes.sort_unstable();
+            indexes
+                .windows(2)
+                .map(|w| (w[1] - w[0] - 1).min(1))
+                .sum::<usize>()
+                + 1
+        })
+        .sum::<usize>()
 }
