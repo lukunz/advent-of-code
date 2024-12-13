@@ -106,12 +106,27 @@ fn parse_price(input: &str) -> (usize, usize) {
 fn main() {
     let data = include_str!("../day13.txt");
 
-    let part1_result = data
+    let mut machines = data
         .split("\n\n")
         .map(Machine::from_string)
+        .collect::<Vec<_>>();
+
+    let part1_result = machines
+        .iter()
         .filter_map(|machine| machine.solve())
         .map(|(a, b)| a * 3 + b)
         .sum::<usize>();
 
+    let part2_result = machines
+        .iter_mut()
+        .filter_map(|machine| {
+            machine.prize_x += 10000000000000;
+            machine.prize_y += 10000000000000;
+            machine.solve()
+        })
+        .map(|(a, b)| a * 3 + b)
+        .sum::<usize>();
+
     println!("Day 13 Part 1: {}", part1_result);
+    println!("Day 13 Part 2: {}", part2_result);
 }
