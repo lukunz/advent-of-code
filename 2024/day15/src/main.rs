@@ -1,7 +1,9 @@
-#[derive(PartialEq)]
+#[derive(Ord, PartialOrd, Eq, PartialEq, Clone)]
 enum Tile {
     Wall,
     Box,
+    BoxL,
+    BoxR,
     Empty,
 }
 
@@ -12,9 +14,16 @@ enum Direction {
     West,
 }
 
+#[derive(Ord, PartialOrd, Eq, PartialEq)]
 struct Position {
     x: usize,
     y: usize,
+}
+
+impl Position {
+    fn new(x: usize, y: usize) -> Self {
+        Self { x, y }
+    }
 }
 
 struct Map {
@@ -55,62 +64,43 @@ impl Map {
         }
     }
 
-    fn step(&self, pos: &mut Position, dir: &Direction) -> Option<&Tile> {
+    fn step(&self, pos: &Position, dir: &Direction, amount: usize) -> Option<Position> {
         match dir {
-            Direction::North => {
-                if pos.y > 0 {
-                    pos.y -= 1;
-                    Some(&self.tiles[pos.y][pos.x])
-                } else {
-                    None
-                }
+            Direction::North if pos.y >= amount => Some(Position::new(pos.x, pos.y - amount)),
+            Direction::East if pos.x < self.width - amount => {
+                Some(Position::new(pos.x + amount, pos.y))
             }
-            Direction::East => {
-                if pos.x < self.width - 1 {
-                    pos.x += 1;
-                    Some(&self.tiles[pos.y][pos.x])
-                } else {
-                    None
-                }
+            Direction::South if pos.y < self.height - amount => {
+                Some(Position::new(pos.x, pos.y + amount))
             }
-            Direction::South => {
-                if pos.y < self.height - 1 {
-                    pos.y += 1;
-                    Some(&self.tiles[pos.y][pos.x])
-                } else {
-                    None
-                }
-            }
-            Direction::West => {
-                if pos.x > 0 {
-                    pos.x -= 1;
-                    Some(&self.tiles[pos.y][pos.x])
-                } else {
-                    None
-                }
-            }
+            Direction::West if pos.x >= amount => Some(Position::new(pos.x - amount, pos.y)),
+            _ => None,
         }
     }
 
-    fn move_robot_and_boxes(&mut self, end_pos: &Position, dir: &Direction) {
-        self.tiles[end_pos.y][end_pos.x] = Tile::Box;
+    fn double_width(&self) -> Self {
+        let tiles = self
+            .tiles
+            .iter()
+            .map(|row| {
+                row.iter()
+                    .flat_map(|tile| match tile {
+                        Tile::Box => vec![Tile::BoxL, Tile::BoxR],
+                        t => vec![t.clone(), t.clone()],
+                    })
+                    .collect::<Vec<Tile>>()
+            })
+            .collect::<Vec<_>>();
 
-        match dir {
-            Direction::North => {
-                self.robot.y -= 1;
-            }
-            Direction::East => {
-                self.robot.x += 1;
-            }
-            Direction::South => {
-                self.robot.y += 1;
-            }
-            Direction::West => {
-                self.robot.x -= 1;
-            }
+        Self {
+            tiles,
+            width: self.width * 2,
+            height: self.height,
+            robot: Position {
+                x: self.robot.x * 2,
+                y: self.robot.y,
+            },
         }
-
-        self.tiles[self.robot.y][self.robot.x] = Tile::Empty;
     }
 }
 
@@ -118,7 +108,9 @@ fn main() {
     let data = include_str!("../day15.txt");
 
     let (map_input, dir_input) = data.split_once("\n\n").expect("Input in wrong format");
-    let mut map = Map::from_str(map_input);
+
+    let map = Map::from_str(map_input);
+    let wide_map = map.double_width();
 
     let dirs = dir_input
         .chars()
@@ -131,44 +123,128 @@ fn main() {
         })
         .collect::<Vec<_>>();
 
+    let part1_result = run(map, &dirs);
+    let part2_result = run(wide_map, &dirs);
+
+    println!("Day 15 Part 1: {}", part1_result);
+    println!("Day 15 Part 2: {}", part2_result);
+}
+
+fn run(mut map: Map, dirs: &[Direction]) -> usize {
+    let mut movable_boxes: Vec<(Position, Tile)> = Vec::new();
+    let mut pos_to_check: Vec<Position> = Vec::new();
+
     for dir in dirs {
-        move_robot(&mut map, &dir);
+        let mut blocked = false;
+
+        if let Some(pos) = map.step(&map.robot, dir, 1) {
+            pos_to_check.push(pos);
+        }
+
+        while let Some(pos) = pos_to_check.pop() {
+            match map.tiles[pos.y][pos.x] {
+                Tile::Empty => {}
+                Tile::Wall => {
+                    blocked = true;
+                    pos_to_check.clear();
+                }
+                Tile::Box => {
+                    let new_pos = map
+                        .step(&pos, dir, 1)
+                        .expect("Boxes can't be on the edge of the map");
+
+                    pos_to_check.push(new_pos);
+                    movable_boxes.push((pos, Tile::Box));
+                }
+                Tile::BoxL => match dir {
+                    Direction::North | Direction::South => {
+                        let new_pos = map
+                            .step(&pos, dir, 1)
+                            .expect("Boxes can't be on the edge of the map");
+                        let right_pos = map
+                            .step(&pos, &Direction::East, 1)
+                            .expect("BoxR must exist, if BoxL exists");
+                        let new_right_pos = map
+                            .step(&right_pos, dir, 1)
+                            .expect("Boxes can't be on the edge of the map");
+
+                        movable_boxes.push((pos, Tile::BoxL));
+                        movable_boxes.push((right_pos, Tile::BoxR));
+                        pos_to_check.push(new_pos);
+                        pos_to_check.push(new_right_pos);
+                    }
+                    Direction::East => {
+                        let new_pos = map
+                            .step(&pos, dir, 2)
+                            .expect("Boxes can't be on the edge of the map");
+
+                        pos_to_check.push(new_pos);
+                        movable_boxes
+                            .push((map.step(&pos, &Direction::East, 1).unwrap(), Tile::BoxR));
+                        movable_boxes.push((pos, Tile::BoxL));
+                    }
+                    Direction::West => {
+                        panic!("Cannot encounter BoxL when moving West")
+                    }
+                },
+                Tile::BoxR => match dir {
+                    Direction::North | Direction::South => {
+                        pos_to_check.push(map.step(&pos, &Direction::West, 1).unwrap());
+                    }
+                    Direction::West => {
+                        let new_pos = map
+                            .step(&pos, dir, 2)
+                            .expect("Boxes can't be on the edge of the map");
+
+                        pos_to_check.push(new_pos);
+                        movable_boxes
+                            .push((map.step(&pos, &Direction::West, 1).unwrap(), Tile::BoxL));
+                        movable_boxes.push((pos, Tile::BoxR));
+                    }
+                    Direction::East => {
+                        panic!("Cannot encounter BoxR when moving East")
+                    }
+                },
+            }
+        }
+
+        if !blocked {
+            movable_boxes.sort();
+            movable_boxes.dedup();
+
+            for (pos, _) in &movable_boxes {
+                map.tiles[pos.y][pos.x] = Tile::Empty;
+            }
+
+            for (pos, tile) in movable_boxes.drain(..) {
+                if let Some(new_pos) = map.step(&pos, dir, 1) {
+                    map.tiles[new_pos.y][new_pos.x] = tile;
+                }
+            }
+
+            if let Some(new_pos) = map.step(&map.robot, dir, 1) {
+                map.robot = new_pos;
+            }
+        } else {
+            movable_boxes.clear();
+        }
     }
 
-    let part1_result = map
-        .tiles
+    sum_gps(&map)
+}
+
+fn sum_gps(map: &Map) -> usize {
+    map.tiles
         .iter()
         .enumerate()
         .flat_map(|(y, row)| {
             row.iter().enumerate().filter_map(move |(x, tile)| {
-                if *tile == Tile::Box {
+                if matches!(tile, Tile::Box | Tile::BoxL) {
                     Some(x + 100 * y)
                 } else {
                     None
                 }
             })
         })
-        .sum::<usize>();
-
-    println!("Day 15 Part 1: {}", part1_result);
-}
-
-fn move_robot(map: &mut Map, dir: &Direction) {
-    let mut current_pos = Position {
-        x: map.robot.x,
-        y: map.robot.y,
-    };
-
-    while let Some(tile) = map.step(&mut current_pos, dir) {
-        match tile {
-            Tile::Empty => {
-                map.move_robot_and_boxes(&current_pos, dir);
-                return;
-            }
-            Tile::Wall => {
-                return;
-            }
-            Tile::Box => {}
-        }
-    }
+        .sum::<usize>()
 }
