@@ -14,21 +14,27 @@ struct Map {
 }
 
 impl Map {
-    fn new(blocks: &[(i32, i32)], width: usize, height: usize) -> Self {
-        let mut tiles = vec![vec![Tile::Empty; width]; height];
+    fn new(width: usize, height: usize) -> Self {
+        Self {
+            tiles: vec![vec![Tile::Empty; width]; height],
+            width: width as i32,
+            height: height as i32,
+        }
+    }
+
+    fn set_blocks(&mut self, blocks: &[(i32, i32)]) {
+        for y in 0..self.height {
+            for x in 0..self.width {
+                self.tiles[y as usize][x as usize] = Tile::Empty;
+            }
+        }
 
         for (x, y) in blocks.iter().cloned() {
             assert!(
-                x >= 0 && y >= 0 && (x as usize) < width && (y as usize) < height,
+                x >= 0 && y >= 0 && x < self.width && y < self.height,
                 "Block is out of bounds"
             );
-            tiles[y as usize][x as usize] = Tile::Blocked;
-        }
-
-        Self {
-            tiles,
-            width: width as i32,
-            height: height as i32,
+            self.tiles[y as usize][x as usize] = Tile::Blocked;
         }
     }
 
@@ -77,12 +83,33 @@ fn main() {
     let number_of_blocks = 1024;
 
     let blocks = parse_input(data);
-    let map = Map::new(&blocks[..number_of_blocks], map_width, map_height);
-    let graph = build_graph(&map);
+    let mut map = Map::new(map_width, map_height);
 
-    if let Some(path) = find_shortest_path((0, 0), (map.width - 1, map.height - 1), &graph) {
-        println!("Day 18 Part 1: {}", path.len() - 1);
-    }
+    let path = find_path_in_map(&mut map, &blocks[0..number_of_blocks]).unwrap();
+
+    println!("Day 18 Part 1: {}", path.len() - 1);
+
+    let result = blocks.binary_search_by(|position| {
+        let index = blocks.iter().position(|p| p == position).unwrap();
+
+        if find_path_in_map(&mut map, &blocks[0..=index]).is_some() {
+            Ordering::Less
+        } else {
+            Ordering::Greater
+        }
+    });
+
+    let index = result.unwrap_or_else(|i| i);
+    let part2_result = format!("{},{}", blocks[index].0, blocks[index].1);
+
+    println!("Day 18 Part 2: {}", part2_result);
+}
+
+fn find_path_in_map(map: &mut Map, blocks: &[(i32, i32)]) -> Option<Vec<(i32, i32)>> {
+    map.set_blocks(blocks);
+    let graph = build_graph(map);
+
+    find_shortest_path((0, 0), (map.width - 1, map.height - 1), &graph)
 }
 
 fn build_graph(map: &Map) -> BTreeMap<(i32, i32), Vec<(i32, i32)>> {
