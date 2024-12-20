@@ -1,16 +1,16 @@
 enum Op {
-    Adv(i32),
-    Bxl(i32),
-    Bst(i32),
-    Jnz(i32),
+    Adv(u64),
+    Bxl(u64),
+    Bst(u64),
+    Jnz(u64),
     Bxc,
-    Out(i32),
-    Bdv(i32),
-    Cdv(i32),
+    Out(u64),
+    Bdv(u64),
+    Cdv(u64),
 }
 
 impl Op {
-    fn new(op: u8, operand: i32) -> Self {
+    fn new(op: u8, operand: u64) -> Self {
         match op {
             0 => Self::Adv(operand),
             1 => Self::Bxl(operand),
@@ -26,11 +26,21 @@ impl Op {
 }
 
 struct State {
-    a: i32,
-    b: i32,
-    c: i32,
+    a: u64,
+    b: u64,
+    c: u64,
     pc: usize,
-    out: Vec<i32>,
+    out: Vec<u64>,
+}
+
+impl State {
+    fn reset(&mut self) {
+        self.a = 0;
+        self.b = 0;
+        self.c = 0;
+        self.pc = 0;
+        self.out.clear();
+    }
 }
 
 fn main() {
@@ -39,18 +49,29 @@ fn main() {
     let (register_input, program_input) = data.split_once("\n\n").unwrap();
 
     let mut register = parse_register(register_input.trim());
-    let program = parse_program(program_input.trim());
+    let (program, raw_program) = parse_program(program_input.trim());
 
     execute_program(&program, &mut register);
 
-    let out = register
+    let part1_result = register
         .out
         .iter()
         .map(|&a| a.to_string())
         .collect::<Vec<String>>()
         .join(",");
 
-    println!("Day 17 Part 1: {}", out);
+    println!("Day 17 Part 1: {}", part1_result);
+
+    let part2_result = find_a(
+        &mut register,
+        &program,
+        &raw_program,
+        0,
+        raw_program.len() - 1,
+    )
+    .unwrap();
+
+    println!("Day 17 Part 2: {}", part2_result);
 }
 
 fn parse_register(input: &str) -> State {
@@ -75,17 +96,23 @@ fn parse_register(input: &str) -> State {
     register
 }
 
-fn parse_program(input: &str) -> Vec<Op> {
+fn parse_program(input: &str) -> (Vec<Op>, Vec<u64>) {
     let (_, program) = input.split_once("Program: ").unwrap();
     let program = program.split(",").collect::<Vec<&str>>();
 
     assert_eq!(program.len() % 2, 0);
+    let raw_program = program
+        .iter()
+        .map(|n| n.parse().unwrap())
+        .collect::<Vec<u64>>();
 
-    program
+    let program = raw_program
         .as_slice()
         .chunks(2)
-        .map(|op| Op::new(op[0].parse().unwrap(), op[1].parse().unwrap()))
-        .collect()
+        .map(|op| Op::new(op[0] as u8, op[1]))
+        .collect();
+
+    (program, raw_program)
 }
 
 fn execute_program(program: &[Op], register: &mut State) {
@@ -119,15 +146,47 @@ fn execute_program(program: &[Op], register: &mut State) {
     }
 }
 
-#[inline]
-fn calculate_dv(value: i32, operand: i32, register: &State) -> i32 {
-    (value as f64 / 2.0f64.powi(combo_operand(operand as u8, register))).trunc() as i32
+fn find_a(
+    register: &mut State,
+    program: &[Op],
+    raw_program: &[u64],
+    base: u64,
+    pos: usize,
+) -> Option<u64> {
+    let mut mul = 1;
+    for _ in 0..pos {
+        mul *= 8;
+    }
+
+    for i in 0..8 {
+        let a = mul * i + base;
+
+        register.reset();
+        register.a = a;
+        execute_program(program, register);
+
+        if register.out.len() > pos && raw_program[pos] == register.out[pos] {
+            if pos == 0 {
+                return Some(a);
+            }
+            if let Some(a) = find_a(register, program, raw_program, a, pos - 1) {
+                return Some(a);
+            }
+        }
+    }
+
+    None
 }
 
 #[inline]
-fn combo_operand(operand: u8, register: &State) -> i32 {
+fn calculate_dv(value: u64, operand: u64, register: &State) -> u64 {
+    (value as f64 / 2.0f64.powi(combo_operand(operand as u8, register) as i32)).trunc() as u64
+}
+
+#[inline]
+fn combo_operand(operand: u8, register: &State) -> u64 {
     match operand {
-        0..=3 => operand as i32,
+        0..=3 => operand as u64,
         4 => register.a,
         5 => register.b,
         6 => register.c,
