@@ -82,14 +82,27 @@ impl Map {
         neighbors
     }
 
-    fn step(&self, (x, y): (usize, usize), dir: &Direction) -> Option<(usize, usize)> {
-        match dir {
-            Direction::North if y > 0 => Some((x, y - 1)),
-            Direction::East if x < self.width - 1 => Some((x + 1, y)),
-            Direction::South if y < self.height - 1 => Some((x, y + 1)),
-            Direction::West if x > 0 => Some((x - 1, y)),
-            _ => None,
-        }
+    fn find_trail_with_deltas(
+        &self,
+        start: &(usize, usize),
+        deltas: &[(isize, isize)],
+    ) -> Vec<((usize, usize), usize)> {
+        deltas
+            .iter()
+            .filter_map(|&(x, y)| {
+                let target_x = start.0.checked_add_signed(x)?;
+                let target_y = start.1.checked_add_signed(y)?;
+
+                if target_x < self.width
+                    && target_y < self.height
+                    && self.tiles[target_y][target_x] == Tile::Trail
+                {
+                    Some(((target_x, target_y), (x.abs() + y.abs()) as usize))
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>()
     }
 }
 
@@ -97,26 +110,15 @@ fn main() {
     let data = include_str!("../day20.txt");
 
     let map = Map::new(data);
-
     let costs = walk_map(&map, map.start);
 
-    let shortcuts = costs
-        .keys()
-        .flat_map(|pos| find_shortcuts(&map, &costs, pos))
-        .collect::<Vec<_>>();
-
-    let mut grouped_shortcuts: HashMap<usize, usize> = HashMap::new();
-    for savings in shortcuts {
-        let entry = grouped_shortcuts.entry(savings).or_default();
-        *entry += 1;
-    }
-
-    let part1_result: usize = grouped_shortcuts
-        .iter()
-        .filter_map(|(savings, count)| if *savings >= 100 { Some(*count) } else { None })
-        .sum();
+    let part1_result = count_shortcuts_gte_100(&map, &costs, 2);
 
     println!("Day 20 Part 1: {}", part1_result);
+
+    let part2_result = count_shortcuts_gte_100(&map, &costs, 20);
+
+    println!("Day 20 Part 2: {}", part2_result);
 }
 
 fn walk_map(map: &Map, start: (usize, usize)) -> HashMap<(usize, usize), usize> {
@@ -149,32 +151,67 @@ fn walk_map(map: &Map, start: (usize, usize)) -> HashMap<(usize, usize), usize> 
     costs
 }
 
+fn find_deltas_for_distance(distance: isize) -> Vec<(isize, isize)> {
+    let mut positions = Vec::new();
+
+    let diff = [(-1, -1), (-1, 1), (1, -1), (1, 1)];
+
+    for d in 2..=distance {
+        for (x, y) in (0..=d).zip((0..=d).rev()) {
+            for (diff_x, diff_y) in diff {
+                positions.push((x * diff_x, y * diff_y));
+            }
+        }
+    }
+
+    positions.sort();
+    positions.dedup();
+
+    positions
+}
+
 fn find_shortcuts(
     map: &Map,
     costs: &HashMap<(usize, usize), usize>,
     pos: &(usize, usize),
+    deltas: &[(isize, isize)],
 ) -> Vec<usize> {
     let start_costs: usize = *costs.get(pos).unwrap();
 
-    map.neighbors(*pos)
+    map.find_trail_with_deltas(pos, deltas)
         .iter()
-        .filter(|((x, y), _)| map.tiles[*y][*x] == Tile::Wall)
-        .filter_map(|((x, y), dir)| {
-            let (new_x, new_y) = map.step((*x, *y), dir)?;
+        .filter_map(|(end_pos, delta_cost)| {
+            let end_cost = costs.get(end_pos)?;
 
-            match map.tiles[new_y][new_x] {
-                Tile::Wall => None,
-                Tile::Trail => {
-                    let max_costs = costs[&(new_x, new_y)];
-                    if max_costs > 1 {
-                        Some(max_costs - 2)
-                    } else {
-                        None
-                    }
-                }
+            if *end_cost > start_costs + delta_cost {
+                Some(*end_cost - start_costs - delta_cost)
+            } else {
+                None
             }
         })
-        .filter(|&max_costs| max_costs > start_costs)
-        .map(|max_costs| max_costs - start_costs)
-        .collect()
+        .collect::<Vec<usize>>()
+}
+
+fn count_shortcuts_gte_100(
+    map: &Map,
+    costs: &HashMap<(usize, usize), usize>,
+    distance: isize,
+) -> usize {
+    let deltas = find_deltas_for_distance(distance);
+
+    let shortcuts = costs
+        .iter()
+        .flat_map(|(pos, _)| find_shortcuts(map, costs, pos, &deltas))
+        .collect::<Vec<usize>>();
+
+    let mut grouped_shortcuts: HashMap<usize, usize> = HashMap::new();
+    for savings in shortcuts {
+        let entry = grouped_shortcuts.entry(savings).or_default();
+        *entry += 1;
+    }
+
+    grouped_shortcuts
+        .iter()
+        .filter_map(|(savings, count)| if *savings >= 100 { Some(*count) } else { None })
+        .sum()
 }
