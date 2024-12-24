@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 #[derive(PartialEq, Clone)]
 enum MoveOrder {
     HorizontalVertical,
@@ -238,6 +240,52 @@ impl KeyPad {
     }
 }
 
+struct Level<'a> {
+    key_pad: &'a KeyPad,
+    cache: HashMap<Vec<char>, usize>,
+    next: Option<Box<Level<'a>>>,
+}
+
+impl<'a> Level<'a> {
+    fn new(key_pad: &'a KeyPad, depth: usize) -> Self {
+        let next = if depth > 1 {
+            Some(Box::new(Level::new(key_pad, depth - 1)))
+        } else {
+            None
+        };
+
+        Self {
+            key_pad,
+            cache: HashMap::new(),
+            next,
+        }
+    }
+
+    fn costs(&mut self, code: &[char]) -> usize {
+        let codes = code.split_inclusive(|&c| c == 'A').collect::<Vec<_>>();
+
+        let mut cost = 0;
+        for code in codes {
+            if let Some(&c) = self.cache.get(code) {
+                cost += c;
+            } else {
+                let msg = MoveSeqGen::new(self.key_pad, code);
+
+                let c = if let Some(next) = self.next.as_mut() {
+                    msg.map(|code| next.costs(&code)).min().unwrap()
+                } else {
+                    msg.map(|code| code.len()).min().unwrap()
+                };
+                cost += c;
+
+                self.cache.insert(code.to_vec(), c);
+            }
+        }
+
+        cost
+    }
+}
+
 fn main() {
     let data = include_str!("../day21.txt");
 
@@ -246,19 +294,33 @@ fn main() {
     let num_pad = KeyPad::new_number_pad();
     let dir_pad = KeyPad::new_arrow_pad();
 
-    let part1_result: usize = codes
+    let part1_result = calculate_result(&codes, &num_pad, &dir_pad, 2);
+
+    println!("Day 21 Part 1: {}", part1_result);
+
+    let part2_result = calculate_result(&codes, &num_pad, &dir_pad, 25);
+
+    println!("Day 21 Part 2: {}", part2_result);
+}
+
+fn calculate_result(
+    codes: &[Vec<char>],
+    num_pad: &KeyPad,
+    dir_pad: &KeyPad,
+    levels: usize,
+) -> usize {
+    let mut lvl = Level::new(dir_pad, levels);
+
+    codes
         .iter()
         .map(|code| {
-            MoveSeqGen::new(&num_pad, code)
-                .flat_map(|code| MoveSeqGen::new(&dir_pad, &code))
-                .flat_map(|code| MoveSeqGen::new(&dir_pad, &code))
-                .map(|r| r.len() * code_to_int(code))
+            let code_value = code_to_int(code);
+            MoveSeqGen::new(num_pad, code)
+                .map(|code_variant| lvl.costs(&code_variant) * code_value)
                 .min()
                 .unwrap()
         })
-        .sum();
-
-    println!("Day 21 Part 1: {}", part1_result);
+        .sum()
 }
 
 fn code_to_int(code: &[char]) -> usize {
