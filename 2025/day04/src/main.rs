@@ -24,18 +24,13 @@ struct Point {
 fn parse_map(input: &str) -> Vec<Vec<Tile>> {
     input
         .lines()
-        .map(|line| line.chars().map(|c| Tile::from_char(c)).collect())
+        .map(|line| line.chars().map(Tile::from_char).collect())
         .collect()
 }
 
-fn main() {
-    let data = include_str!("../day04.txt");
-
-    let map = parse_map(data);
+fn find_removable_rolls(map: &[Vec<Tile>], removable_rolls: &mut Vec<Point>) {
     let width = map[0].len();
     let height = map.len();
-
-    let mut accessable_rolls: Vec<Point> = Vec::new();
 
     for y in 0..height {
         for x in 0..width {
@@ -49,23 +44,44 @@ fn main() {
             let min_y = if y > 0 { y - 1 } else { 0 };
             let max_y = min(y + 1, height - 1);
 
-            let mut neighbour_count = 0;
-
-            for test_y in min_y..=max_y {
-                for test_x in min_x..=max_x {
-                    if map[test_y][test_x] == Tile::Roll {
-                        neighbour_count += 1;
-                    }
-                }
-            }
-
-            neighbour_count -= 1;
+            let neighbour_count = map[min_y..=max_y]
+                .iter()
+                .map(|row| {
+                    row[min_x..=max_x]
+                        .iter()
+                        .filter(|&tile| *tile == Tile::Roll)
+                        .count()
+                })
+                .sum::<usize>()
+                - 1;
 
             if neighbour_count < 4 {
-                accessable_rolls.push(Point { x, y });
+                removable_rolls.push(Point { x, y });
             }
         }
     }
+}
 
-    println!("Day 04 Part 1: {}", accessable_rolls.len());
+fn main() {
+    let data = include_str!("../day04.txt");
+
+    let mut map = parse_map(data);
+
+    let mut accessable_rolls: Vec<Point> = Vec::new();
+    find_removable_rolls(&map, &mut accessable_rolls);
+
+    let mut total_remove_count = accessable_rolls.len();
+
+    println!("Day 04 Part 1: {}", total_remove_count);
+
+    while !accessable_rolls.is_empty() {
+        for p in accessable_rolls.drain(..) {
+            map[p.y][p.x] = Tile::Empty;
+        }
+
+        find_removable_rolls(&map, &mut accessable_rolls);
+        total_remove_count += accessable_rolls.len();
+    }
+
+    println!("Day 04 Part 2: {}", total_remove_count);
 }
