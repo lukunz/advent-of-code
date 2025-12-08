@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 struct Point {
     x: i32,
     y: i32,
@@ -27,9 +27,9 @@ impl Point {
 }
 
 #[derive(Debug)]
-struct Edge {
-    point1: Point,
-    point2: Point,
+struct Edge<'a> {
+    point1: &'a Point,
+    point2: &'a Point,
     distance: f64,
 }
 
@@ -37,15 +37,15 @@ fn parse_input(input: &str) -> Vec<Point> {
     input.lines().map(Point::from_line).collect()
 }
 
-fn calculate_edges(points: &[Point]) -> Vec<Edge> {
+fn calculate_edges(points: &[Point]) -> Vec<Edge<'_>> {
     let mut edges: Vec<Edge> = Vec::new();
 
     for i in 0..points.len() - 1 {
         for j in i + 1..points.len() {
             let distance = points[i].distance(&points[j]);
             edges.push(Edge {
-                point1: points[i],
-                point2: points[j],
+                point1: &points[i],
+                point2: &points[j],
                 distance,
             });
         }
@@ -66,45 +66,70 @@ fn find_cluster_index(clusters: &Vec<HashSet<&Point>>, point: &Point) -> Option<
     None
 }
 
+fn make_connection<'a>(edge: &'a Edge, clusters: &mut Vec<HashSet<&'a Point>>) {
+    let cluster1_index = find_cluster_index(clusters, edge.point1);
+    let cluster2_index = find_cluster_index(clusters, edge.point2);
+
+    match (cluster1_index, cluster2_index) {
+        (Some(i1), Some(i2)) if i1 != i2 => {
+            let keep_index = i1.min(i2);
+            let remove_index = i1.max(i2);
+            let remove_cluster = clusters.remove(remove_index);
+            clusters[keep_index].extend(remove_cluster);
+        }
+        (Some(_), Some(_)) => {}
+        (Some(i1), None) => {
+            clusters[i1].insert(edge.point2);
+        }
+        (None, Some(i2)) => {
+            clusters[i2].insert(edge.point1);
+        }
+        (None, None) => {
+            clusters.push(HashSet::from([edge.point1, edge.point2]));
+        }
+    }
+}
+
 fn part1(edges: &[Edge], connection_count: usize) -> usize {
     let mut clusters: Vec<HashSet<&Point>> = Vec::new();
 
     for edge in edges.iter().take(connection_count) {
-        let cluster1_index = find_cluster_index(&clusters, &edge.point1);
-        let cluster2_index = find_cluster_index(&clusters, &edge.point2);
+        make_connection(edge, &mut clusters);
+    }
 
-        match (cluster1_index, cluster2_index) {
-            (Some(i1), Some(i2)) if i1 != i2 => {
-                let keep_index = i1.min(i2);
-                let remove_index = i1.max(i2);
-                let remove_cluster = clusters.remove(remove_index);
-                clusters[keep_index].extend(remove_cluster);
-            }
-            (Some(_), Some(_)) => {}
-            (Some(i1), None) => {
-                clusters[i1].insert(&edge.point2);
-            }
-            (None, Some(i2)) => {
-                clusters[i2].insert(&edge.point1);
-            }
-            (None, None) => {
-                clusters.push(HashSet::from([&edge.point1, &edge.point2]));
-            }
+    clusters.sort_by_key(|c| std::cmp::Reverse(c.len()));
+
+    clusters.iter().take(3).map(|c| c.len()).product::<usize>()
+}
+
+fn part2(edges: &[Edge], points: &[Point]) -> usize {
+    let mut clusters: Vec<HashSet<&Point>> = Vec::new();
+    let mut connected_points: HashSet<&Point> = HashSet::with_capacity(points.len());
+    let mut last_edge: Option<&Edge> = None;
+
+    for edge in edges {
+        make_connection(edge, &mut clusters);
+
+        connected_points.insert(edge.point1);
+        connected_points.insert(edge.point2);
+
+        if clusters.len() == 1 && connected_points.len() == points.len() {
+            last_edge = Some(edge);
+            break;
         }
     }
 
-    clusters.sort_by_key(|b| std::cmp::Reverse(b.len()));
+    let last_edge = last_edge.unwrap();
 
-    clusters.iter().take(3).map(|c| c.len()).product::<usize>()
+    last_edge.point1.x as usize * last_edge.point2.x as usize
 }
 
 fn main() {
     let input = include_str!("../day08.txt");
 
-    let points: Vec<Point> = parse_input(input);
+    let points = parse_input(input);
     let edges = calculate_edges(&points);
 
-    let part1_result = part1(&edges, 1000);
-
-    println!("Day 08 Part1: {}", part1_result);
+    println!("Day 08 Part 1: {}", part1(&edges, 1000));
+    println!("Day 08 Part 2: {}", part2(&edges, &points));
 }
