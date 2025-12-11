@@ -177,6 +177,42 @@ name = "aoc2024-day24"
 version = "0.1.0"
 
 [[package]]
+name = "aoc2025-day01"
+version = "0.1.0"
+
+[[package]]
+name = "aoc2025-day02"
+version = "0.1.0"
+
+[[package]]
+name = "aoc2025-day03"
+version = "0.1.0"
+
+[[package]]
+name = "aoc2025-day04"
+version = "0.1.0"
+
+[[package]]
+name = "aoc2025-day05"
+version = "0.1.0"
+
+[[package]]
+name = "aoc2025-day06"
+version = "0.1.0"
+
+[[package]]
+name = "aoc2025-day07"
+version = "0.1.0"
+
+[[package]]
+name = "aoc2025-day08"
+version = "0.1.0"
+
+[[package]]
+name = "aoc2025-day09"
+version = "0.1.0"
+
+[[package]]
 name = "aod2023"
 version = "0.1.0"
 dependencies = [
